@@ -109,9 +109,6 @@
     "were",
   ];
 
-  const SAMPLE_TEXT =
-    "Photosynthesis is the process by which plants, algae, and some bacteria convert light energy into chemical energy stored in glucose. Chlorophyll absorbs red and blue wavelengths most efficiently, which is why many leaves appear green. In the light-dependent reactions, water molecules are split, oxygen is released, and ATP and NADPH are produced. The Calvin cycle uses carbon dioxide, ATP, and NADPH to build sugars in the stroma of the chloroplast. Stomata are small openings on leaves that allow carbon dioxide to enter, but they can also let water vapor escape. When light intensity increases, the rate of photosynthesis usually rises until another factor, such as carbon dioxide concentration or temperature, becomes limiting. Excessive heat can reduce photosynthesis because enzymes involved in the Calvin cycle lose their effective shape. Plants balance gas exchange and water conservation by opening and closing stomata.";
-
   function createSession(text, config) {
     const cleanText = normalizeText(text);
     const sentences = splitSentences(cleanText);
@@ -934,7 +931,6 @@
   }
 
   return {
-    SAMPLE_TEXT,
     createSession,
     generateRound,
     gradeRound,

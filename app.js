@@ -10,7 +10,6 @@
     themeToggle: document.getElementById("themeToggle"),
     themeToggleText: document.getElementById("themeToggleText"),
     sourceText: document.getElementById("sourceText"),
-    sampleButton: document.getElementById("sampleButton"),
     generateButton: document.getElementById("generateButton"),
     clearButton: document.getElementById("clearButton"),
     editButton: document.getElementById("editButton"),
@@ -63,12 +62,6 @@
   els.accessForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await verifyAccessCode();
-  });
-
-  els.sampleButton.addEventListener("click", () => {
-    els.sourceText.value = window.QuizEngine.SAMPLE_TEXT;
-    hideLoading();
-    clearStatus();
   });
 
   els.clearButton.addEventListener("click", () => {

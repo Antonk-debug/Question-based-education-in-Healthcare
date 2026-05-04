@@ -200,6 +200,12 @@ body.access-locked {
   padding: 10px 0 22px;
 }
 
+.brand-block {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
 h1,
 h2,
 p {
@@ -210,6 +216,14 @@ h1 {
   font-size: clamp(2rem, 4vw, 4.5rem);
   line-height: 0.95;
   letter-spacing: 0;
+}
+
+.app-subtitle {
+  max-width: 820px;
+  color: var(--muted);
+  font-size: clamp(1rem, 1.4vw, 1.22rem);
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 h2 {
@@ -1025,7 +1039,10 @@ fieldset {
 
     <div class="app-shell">
       <header class="topbar">
-        <h1>Question Based Learning</h1>
+        <div class="brand-block">
+          <h1>Question Based Learning</h1>
+          <p class="app-subtitle">for Continuing Professional Development Among Qualified Practising Dietitians</p>
+        </div>
         <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">
           <span class="theme-toggle-mark" aria-hidden="true"></span>
           <span id="themeToggleText">Dark mode</span>
@@ -1033,18 +1050,11 @@ fieldset {
       </header>
 
       <main class="workspace">
-        <section class="source-panel" aria-labelledby="sourceTitle">
-          <div class="panel-heading">
-            <div>
-              <h2 id="sourceTitle">Educational text</h2>
-            </div>
-            <button class="ghost-button" id="sampleButton" type="button">Sample</button>
-          </div>
-
+        <section class="source-panel" aria-label="Source text">
           <textarea
             id="sourceText"
             spellcheck="true"
-            aria-label="Educational text"
+            aria-label="Source text"
             placeholder="Paste a chapter excerpt, notes, article section, or study guide text."
           ></textarea>
 
@@ -1241,9 +1251,6 @@ fieldset {
     "was",
     "were",
   ];
-
-  const SAMPLE_TEXT =
-    "Photosynthesis is the process by which plants, algae, and some bacteria convert light energy into chemical energy stored in glucose. Chlorophyll absorbs red and blue wavelengths most efficiently, which is why many leaves appear green. In the light-dependent reactions, water molecules are split, oxygen is released, and ATP and NADPH are produced. The Calvin cycle uses carbon dioxide, ATP, and NADPH to build sugars in the stroma of the chloroplast. Stomata are small openings on leaves that allow carbon dioxide to enter, but they can also let water vapor escape. When light intensity increases, the rate of photosynthesis usually rises until another factor, such as carbon dioxide concentration or temperature, becomes limiting. Excessive heat can reduce photosynthesis because enzymes involved in the Calvin cycle lose their effective shape. Plants balance gas exchange and water conservation by opening and closing stomata.";
 
   function createSession(text, config) {
     const cleanText = normalizeText(text);
@@ -2067,7 +2074,6 @@ fieldset {
   }
 
   return {
-    SAMPLE_TEXT,
     createSession,
     generateRound,
     gradeRound,
@@ -2498,7 +2504,6 @@ fieldset {
     themeToggle: document.getElementById("themeToggle"),
     themeToggleText: document.getElementById("themeToggleText"),
     sourceText: document.getElementById("sourceText"),
-    sampleButton: document.getElementById("sampleButton"),
     generateButton: document.getElementById("generateButton"),
     clearButton: document.getElementById("clearButton"),
     editButton: document.getElementById("editButton"),
@@ -2551,12 +2556,6 @@ fieldset {
   els.accessForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await verifyAccessCode();
-  });
-
-  els.sampleButton.addEventListener("click", () => {
-    els.sourceText.value = window.QuizEngine.SAMPLE_TEXT;
-    hideLoading();
-    clearStatus();
   });
 
   els.clearButton.addEventListener("click", () => {

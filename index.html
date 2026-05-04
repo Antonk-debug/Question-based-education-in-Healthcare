@@ -28,7 +28,10 @@
 
     <div class="app-shell">
       <header class="topbar">
-        <h1>Question Based Learning</h1>
+        <div class="brand-block">
+          <h1>Question Based Learning</h1>
+          <p class="app-subtitle">for Continuing Professional Development Among Qualified Practising Dietitians</p>
+        </div>
         <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">
           <span class="theme-toggle-mark" aria-hidden="true"></span>
           <span id="themeToggleText">Dark mode</span>
@@ -36,18 +39,11 @@
       </header>
 
       <main class="workspace">
-        <section class="source-panel" aria-labelledby="sourceTitle">
-          <div class="panel-heading">
-            <div>
-              <h2 id="sourceTitle">Educational text</h2>
-            </div>
-            <button class="ghost-button" id="sampleButton" type="button">Sample</button>
-          </div>
-
+        <section class="source-panel" aria-label="Source text">
           <textarea
             id="sourceText"
             spellcheck="true"
-            aria-label="Educational text"
+            aria-label="Source text"
             placeholder="Paste a chapter excerpt, notes, article section, or study guide text."
           ></textarea>
 
