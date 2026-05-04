@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Adaptive Quiz Studio</title>
+    <script>
+      (() => {
+        try {
+          document.documentElement.dataset.theme = localStorage.getItem("adaptiveQuizTheme") || "light";
+        } catch (error) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="access-gate hidden" id="accessGate">
+      <form class="access-card" id="accessForm">
+        <h2>Access code</h2>
+        <label for="accessCodeInput">Code</label>
+        <input id="accessCodeInput" name="accessCode" type="password" autocomplete="current-password" />
+        <p class="access-error" id="accessError" role="alert"></p>
+        <button class="primary-button" id="accessSubmitButton" type="submit">Continue</button>
+      </form>
+    </div>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <h1>Adaptive Quiz Studio</h1>
+        <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">
+          <span class="theme-toggle-mark" aria-hidden="true"></span>
+          <span id="themeToggleText">Dark mode</span>
+        </button>
+      </header>
+
+      <main class="workspace">
+        <section class="source-panel" aria-labelledby="sourceTitle">
+          <div class="panel-heading">
+            <div>
+              <h2 id="sourceTitle">Educational text</h2>
+            </div>
+            <button class="ghost-button" id="sampleButton" type="button">Sample</button>
+          </div>
+
+          <textarea
+            id="sourceText"
+            spellcheck="true"
+            aria-label="Educational text"
+            placeholder="Paste a chapter excerpt, notes, article section, or study guide text."
+          ></textarea>
+
+          <div class="source-actions">
+            <button class="primary-button" id="generateButton" type="button">Generate quiz</button>
+            <button class="text-button" id="clearButton" type="button">Clear</button>
+          </div>
+
+          <div class="generation-loader hidden" id="generationLoader" aria-live="polite">
+            <div class="loader-copy">
+              <span id="loadingText">Preparing quiz</span>
+              <strong id="loadingPercent">0%</strong>
+            </div>
+            <div class="loader-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <span id="loadingBar"></span>
+            </div>
+          </div>
+
+          <p class="status-message" id="statusMessage" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="quiz-panel" aria-labelledby="quizTitle">
+          <div class="panel-heading">
+            <div>
+              <h2 id="quizTitle">Questions</h2>
+            </div>
+            <button class="ghost-button hidden" id="editButton" type="button">Edit text</button>
+          </div>
+
+          <div class="empty-state" id="emptyState">
+            <div class="empty-visual" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <p>Questions appear here after the source text is analyzed.</p>
+          </div>
+
+          <form id="quizForm" class="question-stack hidden"></form>
+
+          <div class="quiz-actions hidden" id="quizActions">
+            <div class="progress-wrap" aria-label="Answer progress">
+              <span id="progressText">0 of 0 answered</span>
+              <div class="progress-track">
+                <span id="progressBar"></span>
+              </div>
+            </div>
+            <div class="question-nav">
+              <button class="ghost-button" id="prevQuestionButton" type="button">Previous</button>
+              <button class="ghost-button" id="nextQuestionButton" type="button">Next</button>
+              <button class="primary-button" id="submitButton" type="submit" form="quizForm" disabled>
+                Submit round
+              </button>
+            </div>
+          </div>
+
+          <section class="report hidden" id="report" aria-label="Round results">
+            <div class="report-heading">
+              <strong id="reportScore"></strong>
+            </div>
+            <div id="feedbackList" class="feedback-list"></div>
+            <div class="next-actions">
+              <button class="primary-button hidden" id="nextRoundButton" type="button">Practice weak areas</button>
+              <button class="ghost-button" id="restartButton" type="button">New quiz</button>
+            </div>
+          </section>
+        </section>
+
+        <div class="map-column">
+          <div class="score-pill" aria-live="polite">
+            <span id="roundLabel">Round 1</span>
+          </div>
+
+          <aside class="insight-panel" aria-label="Question map">
+            <p class="weak-area-summary map-weak-summary hidden" id="weakAreaSummary"></p>
+
+            <div class="map-snapshots hidden" id="mapSnapshots" aria-label="Completed round maps"></div>
+            <canvas id="masteryCanvas" width="520" height="360" aria-label="Question map"></canvas>
+          </aside>
+        </div>
+      </main>
+
+      <footer class="app-footer">Created by Anton K</footer>
+    </div>
+
+    <script src="engine.js"></script>
+    <script src="ai.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

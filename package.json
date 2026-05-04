@@ -1,0 +1,12 @@
+{
+  "name": "adaptive-quiz-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A hosted adaptive quiz app with a private Gemini backend.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

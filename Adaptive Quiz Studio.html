@@ -1,0 +1,3348 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Adaptive Quiz Studio</title>
+    <script>
+      (() => {
+        try {
+          document.documentElement.dataset.theme = localStorage.getItem("adaptiveQuizTheme") || "light";
+        } catch (error) {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <style>
+:root {
+  color-scheme: light;
+  --bg: #f7f5ef;
+  --surface: #ffffff;
+  --surface-soft: #fbfaf6;
+  --ink: #202326;
+  --muted: #686f76;
+  --line: #d9d4c8;
+  --accent: #146c70;
+  --accent-strong: #0f5659;
+  --accent-soft: #dceeed;
+  --gold: #c18425;
+  --gold-soft: #fff0cf;
+  --rose: #ba4148;
+  --rose-soft: #f7dddd;
+  --green: #23774f;
+  --green-soft: #ddf0e5;
+  --shadow: 0 18px 45px rgba(32, 35, 38, 0.12);
+  --panel-bg: rgba(255, 255, 255, 0.9);
+  --gate-bg: rgba(247, 245, 239, 0.84);
+  --control-bg: #ffffff;
+  --button-ink: #ffffff;
+  --track-bg: #e7e1d5;
+  --loader-track-bg: rgba(255, 255, 255, 0.72);
+  --map-bg: #fbfaf6;
+  --map-center: #ffffff;
+  --map-link: rgba(32, 35, 38, 0.18);
+  --map-correct: #23774f;
+  --map-current: #d88a1d;
+  --map-done: #e1bd35;
+  --map-pending: #ba4148;
+  --bg-wash-a: rgba(20, 108, 112, 0.08);
+  --bg-wash-b: rgba(193, 132, 37, 0.12);
+  --radius: 8px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #090a10;
+  --surface: #141722;
+  --surface-soft: #10131d;
+  --ink: #f2f5ff;
+  --muted: #aab2c7;
+  --line: #30364d;
+  --accent: #7c8cff;
+  --accent-strong: #b9c1ff;
+  --accent-soft: #20264a;
+  --gold: #d99a2b;
+  --gold-soft: #3c2d15;
+  --rose: #ff6b7a;
+  --rose-soft: #3a1720;
+  --green: #62d899;
+  --green-soft: #173525;
+  --shadow: 0 20px 52px rgba(0, 0, 0, 0.38);
+  --panel-bg: rgba(20, 23, 34, 0.94);
+  --gate-bg: rgba(9, 10, 16, 0.82);
+  --control-bg: #161a27;
+  --button-ink: #ffffff;
+  --track-bg: #272d42;
+  --loader-track-bg: rgba(16, 19, 29, 0.88);
+  --map-bg: #0e111a;
+  --map-center: #171b29;
+  --map-link: rgba(185, 193, 255, 0.22);
+  --map-correct: #62d899;
+  --map-current: #a68cff;
+  --map-done: #5f7cff;
+  --map-pending: #ff6b7a;
+  --bg-wash-a: rgba(124, 140, 255, 0.16);
+  --bg-wash-b: rgba(98, 216, 153, 0.07);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background:
+    linear-gradient(135deg, var(--bg-wash-a), transparent 34%),
+    linear-gradient(315deg, var(--bg-wash-b), transparent 30%),
+    var(--bg);
+  color: var(--ink);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+body.access-locked {
+  overflow: hidden;
+}
+
+.access-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--gate-bg);
+  backdrop-filter: blur(10px);
+}
+
+.access-card {
+  width: min(360px, 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.access-card h2 {
+  margin-bottom: 16px;
+}
+
+.access-card label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.access-card input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  color: var(--ink);
+  padding: 0 10px;
+  outline: none;
+}
+
+.access-card input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(20, 108, 112, 0.14);
+}
+
+.access-error {
+  min-height: 20px;
+  margin: 10px 0;
+  color: var(--rose);
+  font-size: 0.9rem;
+}
+
+.access-card button {
+  width: 100%;
+}
+
+.app-shell {
+  width: min(1500px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 24px 0 36px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 10px 0 22px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2rem, 4vw, 4.5rem);
+  line-height: 0.95;
+  letter-spacing: 0;
+}
+
+h2 {
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+.theme-toggle {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  color: var(--ink);
+  padding: 0 14px;
+  font-size: 0.9rem;
+  font-weight: 850;
+  box-shadow: 0 10px 28px rgba(32, 35, 38, 0.08);
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.theme-toggle-mark {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: linear-gradient(90deg, var(--accent) 0 50%, transparent 50% 100%);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.eyebrow {
+  margin-bottom: 6px;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.score-pill {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-bg);
+  padding: 16px 18px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  box-shadow: 0 10px 28px rgba(32, 35, 38, 0.08);
+}
+
+.score-pill span {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.85fr) minmax(420px, 1.3fr) minmax(280px, 0.85fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.source-panel,
+.quiz-panel,
+.insight-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-bg);
+  box-shadow: var(--shadow);
+}
+
+.source-panel,
+.map-column {
+  position: sticky;
+  top: 20px;
+}
+
+.map-column {
+  display: grid;
+  gap: 12px;
+}
+
+.source-panel,
+.quiz-panel {
+  padding: 18px;
+}
+
+.insight-panel {
+  padding: 18px 18px 20px;
+}
+
+.panel-heading,
+.report-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 420px;
+  max-height: 62vh;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  color: var(--ink);
+  line-height: 1.5;
+  padding: 14px;
+  outline: none;
+}
+
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(20, 108, 112, 0.14);
+}
+
+.ai-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 12px;
+}
+
+.toggle-row,
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-weight: 850;
+}
+
+.toggle-row input,
+.remember-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.ai-fields {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.ai-fields label:not(.remember-row) {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.ai-fields input[type="password"],
+.ai-fields input[type="text"],
+.ai-fields input[type="url"],
+.ai-fields select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--control-bg);
+  color: var(--ink);
+  padding: 0 10px;
+  outline: none;
+}
+
+.ai-fields input[type="password"]:focus,
+.ai-fields input[type="text"]:focus,
+.ai-fields input[type="url"]:focus,
+.ai-fields select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(20, 108, 112, 0.14);
+}
+
+.source-actions,
+.quiz-actions,
+.next-actions,
+.question-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.question-nav {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
+.primary-button,
+.ghost-button,
+.text-button {
+  min-height: 42px;
+  border-radius: var(--radius);
+  padding: 0 16px;
+  font-weight: 800;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease;
+}
+
+.primary-button {
+  background: var(--accent);
+  color: var(--button-ink);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--accent-strong);
+  transform: translateY(-1px);
+}
+
+.ghost-button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.ghost-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  transform: translateY(-1px);
+}
+
+.text-button {
+  background: transparent;
+  color: var(--muted);
+}
+
+.text-button:hover:not(:disabled) {
+  color: var(--rose);
+}
+
+.status-message {
+  min-height: 22px;
+  margin-top: 12px;
+  color: var(--rose);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.status-message.success {
+  color: var(--green);
+}
+
+.generation-loader {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  border: 1px solid rgba(20, 108, 112, 0.24);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  padding: 12px;
+}
+
+.loader-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--accent-strong);
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.loader-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--loader-track-bg);
+  overflow: hidden;
+}
+
+.loader-track span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--gold), var(--accent));
+  transition: width 220ms ease;
+}
+
+.empty-state {
+  min-height: 430px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 20px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  color: var(--muted);
+  text-align: center;
+  padding: 30px;
+}
+
+.empty-visual {
+  width: min(240px, 62vw);
+  aspect-ratio: 1.6;
+  position: relative;
+}
+
+.empty-visual span {
+  position: absolute;
+  display: block;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--control-bg);
+}
+
+.empty-visual span:nth-child(1) {
+  width: 54%;
+  height: 48%;
+  left: 0;
+  top: 8%;
+}
+
+.empty-visual span:nth-child(2) {
+  width: 58%;
+  height: 54%;
+  right: 0;
+  top: 24%;
+  border-color: rgba(20, 108, 112, 0.35);
+}
+
+.empty-visual span:nth-child(3) {
+  width: 34%;
+  height: 34%;
+  left: 33%;
+  bottom: 0;
+  border-color: rgba(193, 132, 37, 0.45);
+}
+
+.question-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.question-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 16px;
+}
+
+.question-stack-leave-forward .question-card,
+.question-stack-leave-backward .question-card {
+  pointer-events: none;
+}
+
+.question-stack-leave-forward .question-card {
+  animation: questionLeaveForward 130ms ease forwards;
+}
+
+.question-stack-leave-backward .question-card {
+  animation: questionLeaveBackward 130ms ease forwards;
+}
+
+.question-card-enter-forward {
+  animation: questionEnterForward 180ms ease both;
+}
+
+.question-card-enter-backward {
+  animation: questionEnterBackward 180ms ease both;
+}
+
+@keyframes questionLeaveForward {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@keyframes questionLeaveBackward {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+@keyframes questionEnterForward {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes questionEnterBackward {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .question-stack-leave-forward .question-card,
+  .question-stack-leave-backward .question-card,
+  .question-card-enter-forward,
+  .question-card-enter-backward {
+    animation: none;
+  }
+}
+
+.question-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.area-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  padding: 0 10px;
+  color: var(--accent-strong);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.question-card legend {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 0;
+  color: var(--ink);
+  font-size: 1.04rem;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+:root[data-theme="dark"] .question-card legend {
+  color: #e3e8ff;
+  text-shadow: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.option-grid {
+  display: grid;
+  gap: 9px;
+}
+
+.option-row {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 10px;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease;
+}
+
+.option-row:hover {
+  border-color: rgba(20, 108, 112, 0.5);
+  transform: translateY(-1px);
+}
+
+.option-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.option-letter {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--control-bg);
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.option-row span:last-child {
+  align-self: center;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
+.option-row:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.option-row:has(input:checked) .option-letter {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--button-ink);
+}
+
+.progress-wrap {
+  width: min(360px, 100%);
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.progress-track {
+  height: 9px;
+  border-radius: 999px;
+  background: var(--track-bg);
+  overflow: hidden;
+}
+
+.progress-track span {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--gold), var(--accent));
+  transition: width 180ms ease;
+}
+
+.report {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.report-heading strong {
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  padding: 8px 12px;
+}
+
+.weak-area-summary {
+  margin-bottom: 12px;
+  border: 1px solid rgba(186, 65, 72, 0.24);
+  border-radius: var(--radius);
+  background: var(--rose-soft);
+  color: var(--ink);
+  font-size: 0.94rem;
+  line-height: 1.42;
+  padding: 10px 12px;
+}
+
+.map-weak-summary {
+  min-height: 42px;
+  margin-top: 0;
+}
+
+.weak-area-summary.mastered {
+  border-color: rgba(35, 119, 79, 0.28);
+  background: var(--green-soft);
+}
+
+.feedback-list {
+  display: grid;
+  gap: 10px;
+}
+
+.feedback-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--surface-soft);
+}
+
+.feedback-item.correct {
+  border-color: rgba(35, 119, 79, 0.4);
+  background: var(--green-soft);
+}
+
+.feedback-item.wrong {
+  border-color: rgba(186, 65, 72, 0.38);
+  background: var(--rose-soft);
+}
+
+.feedback-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-weight: 900;
+}
+
+.feedback-title span {
+  overflow-wrap: anywhere;
+}
+
+.feedback-item p {
+  color: var(--ink);
+  font-size: 0.93rem;
+  line-height: 1.45;
+}
+
+.feedback-item small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+#masteryCanvas {
+  width: 100%;
+  aspect-ratio: 1.42;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--map-bg);
+}
+
+.map-snapshots {
+  min-height: 58px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.map-snapshot {
+  width: 54px;
+  height: 54px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--map-bg);
+}
+
+.area-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.area-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding: 9px 0;
+  font-size: 0.9rem;
+}
+
+.area-row:last-child {
+  border-bottom: 0;
+}
+
+.area-row strong {
+  overflow-wrap: anywhere;
+}
+
+.area-row span {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.focus-box {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.focus-box strong {
+  display: block;
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+
+.focus-box p:last-child {
+  color: var(--muted);
+  line-height: 1.42;
+}
+
+.app-footer {
+  padding: 22px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.hidden {
+  display: none !important;
+}
+
+@media (max-width: 1180px) {
+  .workspace {
+    grid-template-columns: minmax(300px, 0.85fr) minmax(420px, 1.15fr);
+  }
+
+  .insight-panel {
+    position: static;
+  }
+
+  .map-column {
+    grid-column: 1 / -1;
+    position: static;
+  }
+}
+
+@media (max-width: 820px) {
+  .app-shell {
+    width: min(100% - 20px, 760px);
+    padding-top: 14px;
+  }
+
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .source-panel,
+  .map-column {
+    position: static;
+  }
+
+  textarea {
+    min-height: 300px;
+  }
+
+  .source-actions,
+  .quiz-actions,
+  .next-actions,
+  .question-nav {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .primary-button,
+  .ghost-button,
+  .text-button {
+    width: 100%;
+  }
+}
+
+</style>
+  </head>
+  <body>
+    <div class="access-gate hidden" id="accessGate">
+      <form class="access-card" id="accessForm">
+        <h2>Access code</h2>
+        <label for="accessCodeInput">Code</label>
+        <input id="accessCodeInput" name="accessCode" type="password" autocomplete="current-password" />
+        <p class="access-error" id="accessError" role="alert"></p>
+        <button class="primary-button" id="accessSubmitButton" type="submit">Continue</button>
+      </form>
+    </div>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <h1>Adaptive Quiz Studio</h1>
+        <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">
+          <span class="theme-toggle-mark" aria-hidden="true"></span>
+          <span id="themeToggleText">Dark mode</span>
+        </button>
+      </header>
+
+      <main class="workspace">
+        <section class="source-panel" aria-labelledby="sourceTitle">
+          <div class="panel-heading">
+            <div>
+              <h2 id="sourceTitle">Educational text</h2>
+            </div>
+            <button class="ghost-button" id="sampleButton" type="button">Sample</button>
+          </div>
+
+          <textarea
+            id="sourceText"
+            spellcheck="true"
+            aria-label="Educational text"
+            placeholder="Paste a chapter excerpt, notes, article section, or study guide text."
+          ></textarea>
+
+          <div class="source-actions">
+            <button class="primary-button" id="generateButton" type="button">Generate quiz</button>
+            <button class="text-button" id="clearButton" type="button">Clear</button>
+          </div>
+
+          <div class="generation-loader hidden" id="generationLoader" aria-live="polite">
+            <div class="loader-copy">
+              <span id="loadingText">Preparing quiz</span>
+              <strong id="loadingPercent">0%</strong>
+            </div>
+            <div class="loader-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <span id="loadingBar"></span>
+            </div>
+          </div>
+
+          <p class="status-message" id="statusMessage" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="quiz-panel" aria-labelledby="quizTitle">
+          <div class="panel-heading">
+            <div>
+              <h2 id="quizTitle">Questions</h2>
+            </div>
+            <button class="ghost-button hidden" id="editButton" type="button">Edit text</button>
+          </div>
+
+          <div class="empty-state" id="emptyState">
+            <div class="empty-visual" aria-hidden="true">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <p>Questions appear here after the source text is analyzed.</p>
+          </div>
+
+          <form id="quizForm" class="question-stack hidden"></form>
+
+          <div class="quiz-actions hidden" id="quizActions">
+            <div class="progress-wrap" aria-label="Answer progress">
+              <span id="progressText">0 of 0 answered</span>
+              <div class="progress-track">
+                <span id="progressBar"></span>
+              </div>
+            </div>
+            <div class="question-nav">
+              <button class="ghost-button" id="prevQuestionButton" type="button">Previous</button>
+              <button class="ghost-button" id="nextQuestionButton" type="button">Next</button>
+              <button class="primary-button" id="submitButton" type="submit" form="quizForm" disabled>
+                Submit round
+              </button>
+            </div>
+          </div>
+
+          <section class="report hidden" id="report" aria-label="Round results">
+            <div class="report-heading">
+              <strong id="reportScore"></strong>
+            </div>
+            <div id="feedbackList" class="feedback-list"></div>
+            <div class="next-actions">
+              <button class="primary-button hidden" id="nextRoundButton" type="button">Practice weak areas</button>
+              <button class="ghost-button" id="restartButton" type="button">New quiz</button>
+            </div>
+          </section>
+        </section>
+
+        <div class="map-column">
+          <div class="score-pill" aria-live="polite">
+            <span id="roundLabel">Round 1</span>
+          </div>
+
+          <aside class="insight-panel" aria-label="Question map">
+            <p class="weak-area-summary map-weak-summary hidden" id="weakAreaSummary"></p>
+
+            <div class="map-snapshots hidden" id="mapSnapshots" aria-label="Completed round maps"></div>
+            <canvas id="masteryCanvas" width="520" height="360" aria-label="Question map"></canvas>
+          </aside>
+        </div>
+      </main>
+
+      <footer class="app-footer">Created by Anton K</footer>
+    </div>
+
+    <script>
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === "object" && module.exports) {
+    module.exports = api;
+  }
+  root.QuizEngine = api;
+})(typeof window !== "undefined" ? window : globalThis, function () {
+  "use strict";
+
+  const STOP_WORDS = new Set([
+    "about",
+    "above",
+    "after",
+    "again",
+    "against",
+    "also",
+    "although",
+    "always",
+    "among",
+    "because",
+    "been",
+    "before",
+    "being",
+    "between",
+    "both",
+    "cannot",
+    "could",
+    "during",
+    "each",
+    "early",
+    "every",
+    "from",
+    "have",
+    "having",
+    "into",
+    "itself",
+    "just",
+    "like",
+    "many",
+    "more",
+    "most",
+    "much",
+    "must",
+    "only",
+    "other",
+    "over",
+    "same",
+    "should",
+    "some",
+    "such",
+    "than",
+    "that",
+    "their",
+    "them",
+    "then",
+    "there",
+    "these",
+    "they",
+    "this",
+    "those",
+    "through",
+    "under",
+    "until",
+    "very",
+    "what",
+    "when",
+    "where",
+    "which",
+    "while",
+    "will",
+    "with",
+    "within",
+    "without",
+    "would",
+  ]);
+
+  const RELATION_WORDS = [
+    "absorbs",
+    "causes",
+    "cause",
+    "converts",
+    "leads to",
+    "results in",
+    "produces",
+    "uses",
+    "use",
+    "allows",
+    "helps",
+    "prevents",
+    "reduces",
+    "increases",
+    "requires",
+    "depends on",
+    "supports",
+    "controls",
+    "regulates",
+    "explains",
+  ];
+
+  const DEFINITION_WORDS = [
+    "is defined as",
+    "are defined as",
+    "can be defined as",
+    "refers to",
+    "means",
+    "is",
+    "are",
+    "was",
+    "were",
+  ];
+
+  const SAMPLE_TEXT =
+    "Photosynthesis is the process by which plants, algae, and some bacteria convert light energy into chemical energy stored in glucose. Chlorophyll absorbs red and blue wavelengths most efficiently, which is why many leaves appear green. In the light-dependent reactions, water molecules are split, oxygen is released, and ATP and NADPH are produced. The Calvin cycle uses carbon dioxide, ATP, and NADPH to build sugars in the stroma of the chloroplast. Stomata are small openings on leaves that allow carbon dioxide to enter, but they can also let water vapor escape. When light intensity increases, the rate of photosynthesis usually rises until another factor, such as carbon dioxide concentration or temperature, becomes limiting. Excessive heat can reduce photosynthesis because enzymes involved in the Calvin cycle lose their effective shape. Plants balance gas exchange and water conservation by opening and closing stomata.";
+
+  function createSession(text, config) {
+    const cleanText = normalizeText(text);
+    const sentences = splitSentences(cleanText);
+    const keywordCounts = countKeywords(sentences);
+    const facts = sentences
+      .map((sentence, index) => buildFact(sentence, index, keywordCounts))
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+
+    const usableFacts = dedupeFacts(facts).slice(0, 18);
+
+    if (!usableFacts.length) {
+      return {
+        text: cleanText,
+        hash: hashString(cleanText || "empty"),
+        facts: [],
+        areas: [],
+        config: Object.assign({ roundSize: 5 }, config || {}),
+      };
+    }
+
+    const areas = buildAreas(usableFacts);
+
+    return {
+      text: cleanText,
+      hash: hashString(cleanText),
+      facts: usableFacts,
+      areas,
+      config: Object.assign({ roundSize: 5 }, config || {}),
+    };
+  }
+
+  function generateRound(session, options) {
+    if (!session?.facts?.length) return [];
+
+    const settings = Object.assign(
+      { weakAreas: [], roundIndex: 1, previousQuestionIds: [], roundSize: 5 },
+      options || {},
+    );
+    const seed = session.hash + settings.roundIndex * 997;
+    const rng = mulberry32(seed);
+    const weakSet = new Set((settings.weakAreas || []).map(normalizeKey));
+    const previousIds = new Set(settings.previousQuestionIds || []);
+
+    let pool = session.facts;
+    if (weakSet.size) {
+      const focused = session.facts.filter((fact) => {
+        if (weakSet.has(normalizeKey(fact.area))) return true;
+        return fact.keywords.some((keyword) => weakSet.has(normalizeKey(keyword)));
+      });
+      if (focused.length) pool = focused;
+    }
+
+    const ordered = shuffle(pool, rng);
+    const questions = [];
+    const target = Math.max(1, settings.roundSize || session.config.roundSize || 5);
+    let safety = 0;
+
+    while (questions.length < target && safety < target * 8) {
+      const fact = ordered[safety % ordered.length] || session.facts[safety % session.facts.length];
+      const variant = (settings.roundIndex + safety + fact.index) % 5;
+      const question = buildQuestion(fact, session.facts, {
+        seed: seed + safety * 131,
+        roundIndex: settings.roundIndex,
+        variant,
+      });
+
+      if (!previousIds.has(question.id) || weakSet.size || questions.length >= pool.length) {
+        if (!questions.some((item) => item.id === question.id)) {
+          questions.push(question);
+        }
+      }
+      safety += 1;
+    }
+
+    return questions;
+  }
+
+  function gradeRound(questions, answers) {
+    const perArea = {};
+    const items = questions.map((question) => {
+      const chosenId = answers[question.id];
+      const chosen = question.options.find((option) => option.id === chosenId);
+      const correctOption = question.options.find((option) => option.id === question.answerId);
+      const isCorrect = chosenId === question.answerId;
+
+      if (!perArea[question.area]) {
+        perArea[question.area] = { area: question.area, asked: 0, correct: 0, wrong: 0 };
+      }
+      perArea[question.area].asked += 1;
+      perArea[question.area][isCorrect ? "correct" : "wrong"] += 1;
+
+      return {
+        id: question.id,
+        area: question.area,
+        prompt: question.prompt,
+        chosen: chosen ? chosen.text : "",
+        correct: correctOption ? correctOption.text : "",
+        isCorrect,
+        explanation: question.explanation,
+        source: question.source,
+      };
+    });
+
+    const correctCount = items.filter((item) => item.isCorrect).length;
+    const weakAreas = Object.values(perArea)
+      .filter((area) => area.wrong > 0)
+      .sort((a, b) => b.wrong - a.wrong || a.area.localeCompare(b.area))
+      .map((area) => area.area);
+
+    return {
+      total: questions.length,
+      correct: correctCount,
+      wrong: questions.length - correctCount,
+      items,
+      perArea,
+      weakAreas,
+      mastered: correctCount === questions.length,
+    };
+  }
+
+  function normalizeText(text) {
+    return String(text || "")
+      .replace(/\r/g, "\n")
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function splitSentences(text) {
+    const normalized = normalizeText(text)
+      .replace(/^[\s>*-]*(?:\d+[.)]\s*)?/gm, "")
+      .replace(/[•·]/g, "\n");
+    const lineCandidates = normalized
+      .split(/\n+/)
+      .map((line) => cleanSentence(line))
+      .filter(Boolean);
+    const punctuationCandidates =
+      normalized
+        .replace(/\n+/g, ". ")
+        .match(/[^.!?]+(?:[.!?]+|$)/g)
+        ?.map((sentence) => cleanSentence(sentence)) || [];
+
+    const candidates = lineCandidates.concat(punctuationCandidates);
+    const pieces = candidates.flatMap(splitCandidate);
+    const seen = new Set();
+
+    return pieces.filter((sentence) => {
+      const key = normalizeKey(sentence);
+      if (wordCount(sentence) < 4 || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function splitCandidate(sentence) {
+    const clean = cleanSentence(sentence);
+    const words = wordCount(clean);
+    if (!clean || words < 4) return [];
+    if (words <= 55) return [clean];
+
+    const clausePieces = clean
+      .split(/(?:;|:|\s+-\s+|\s+\|\s+|\s+\band\b\s+|\s+\bbut\b\s+|\s+\bwhile\b\s+|\s+\bwhereas\b\s+)/i)
+      .map((piece) => cleanSentence(piece))
+      .filter((piece) => wordCount(piece) >= 4 && wordCount(piece) <= 55);
+
+    if (clausePieces.length >= 2) return clausePieces;
+    return chunkLongSentence(clean);
+  }
+
+  function chunkLongSentence(sentence) {
+    const words = sentence.match(/[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*|[^\sA-Za-z0-9]/g) || [];
+    const chunks = [];
+    const maxWords = 34;
+    const overlap = 5;
+    let wordSeen = 0;
+    let startToken = 0;
+
+    for (let index = 0; index < words.length; index += 1) {
+      if (/^[A-Za-z0-9]/.test(words[index])) wordSeen += 1;
+      if (wordSeen >= maxWords || index === words.length - 1) {
+        const chunk = cleanSentence(words.slice(startToken, index + 1).join(" ").replace(/\s+([,.;:!?])/g, "$1"));
+        if (wordCount(chunk) >= 4) chunks.push(chunk);
+        const rewind = Math.max(0, index - overlap * 2);
+        startToken = rewind;
+        wordSeen = 0;
+      }
+    }
+
+    return chunks;
+  }
+
+  function cleanSentence(sentence) {
+    return String(sentence || "")
+      .replace(/\s+/g, " ")
+      .replace(/^[-*]\s*/, "")
+      .trim();
+  }
+
+  function wordCount(text) {
+    return (String(text).match(/[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*/g) || []).length;
+  }
+
+  function tokenize(text) {
+    return (String(text).toLowerCase().match(/[a-z][a-z'-]{2,}|\d+(?:\.\d+)?%?/g) || []).filter(
+      (token) => !STOP_WORDS.has(token) && token.length > 2,
+    );
+  }
+
+  function countKeywords(sentences) {
+    const counts = new Map();
+    sentences.forEach((sentence) => {
+      new Set(tokenize(sentence)).forEach((token) => {
+        counts.set(token, (counts.get(token) || 0) + 1);
+      });
+    });
+    return counts;
+  }
+
+  function buildFact(sentence, index, keywordCounts) {
+    const words = wordCount(sentence);
+    if (words < 4) return null;
+
+    const definition = extractDefinition(sentence);
+    const relation = extractRelation(sentence);
+    const list = extractList(sentence);
+    const keywords = rankKeywords(sentence, keywordCounts);
+    const area = chooseArea(sentence, definition, relation, list, keywords);
+    const score =
+      words +
+      (definition ? 26 : 0) +
+      (relation ? 18 : 0) +
+      (list ? 14 : 0) +
+      Math.min(18, keywords.length * 4) +
+      (/\d|%/.test(sentence) ? 8 : 0);
+
+    return {
+      id: `fact-${index}-${hashString(sentence)}`,
+      index,
+      sentence,
+      source: sentence,
+      definition,
+      relation,
+      list,
+      keywords,
+      area,
+      score,
+    };
+  }
+
+  function extractDefinition(sentence) {
+    const escaped = DEFINITION_WORDS.map(escapeRegExp).join("|");
+    const pattern = new RegExp(`^(.{2,90}?)\\s+(${escaped})\\s+(.{8,})$`, "i");
+    const match = sentence.match(pattern);
+    if (!match) return null;
+
+    const term = cleanTerm(match[1]);
+    const definition = stripTrailing(cleanSentence(match[3]));
+    if (!term || !definition || wordCount(term) > 8 || isBadDefinitionSubject(match[1])) {
+      return null;
+    }
+    if (/^(split|released|produced|absorbed|converted|used|stored|called|known)\b/i.test(definition)) {
+      return null;
+    }
+
+    return {
+      term,
+      connector: match[2].toLowerCase(),
+      definition,
+    };
+  }
+
+  function extractRelation(sentence) {
+    const escaped = RELATION_WORDS.map(escapeRegExp).join("|");
+    const pattern = new RegExp(`^(.{2,90}?)\\s+(${escaped})\\s+(.{5,})$`, "i");
+    const match = sentence.match(pattern);
+    if (!match) return null;
+
+    return {
+      subject: cleanTerm(match[1]),
+      verb: match[2].toLowerCase(),
+      object: stripTrailing(cleanSentence(match[3])),
+    };
+  }
+
+  function extractList(sentence) {
+    const pattern = /^(.{2,90}?)\s+(includes|include|contains|contain|consists of|consist of|is made of|are made of|has|have)\s+(.{5,})$/i;
+    const match = sentence.match(pattern);
+    if (!match) return null;
+
+    return {
+      subject: cleanTerm(match[1]),
+      verb: match[2].toLowerCase(),
+      members: stripTrailing(cleanSentence(match[3])),
+    };
+  }
+
+  function rankKeywords(sentence, keywordCounts) {
+    return tokenize(sentence)
+      .map((token) => ({
+        token,
+        score: token.length + Math.max(0, 8 - (keywordCounts.get(token) || 1)),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.token)
+      .filter((token, index, arr) => arr.indexOf(token) === index)
+      .slice(0, 8);
+  }
+
+  function chooseArea(sentence, definition, relation, list, keywords) {
+    if (definition?.term) return titleCase(definition.term);
+    if (relation?.subject && !isBadDefinitionSubject(relation.subject)) {
+      return titleCase(relation.subject);
+    }
+    if (list?.subject && !isBadDefinitionSubject(list.subject)) {
+      return titleCase(list.subject);
+    }
+
+    const contextLead = sentence.match(/^(?:In|During|Within)\s+(?:the\s+)?([^,]{3,70}),/i);
+    if (contextLead) return titleCase(trimConditionPhrase(contextLead[1]));
+
+    const conditionLead = sentence.match(/^(?:When|If|Because|Although|While)\s+([^,]{3,70}),/i);
+    if (conditionLead) return titleCase(trimConditionPhrase(conditionLead[1]));
+
+    const subjectLead = sentence.match(
+      /^(.{2,70}?)\s+(?:can|usually|often|must|will|may|might|should|balances|balance|contains|contain|includes|include|supports|support)\b/i,
+    );
+    if (subjectLead && !isBadDefinitionSubject(subjectLead[1])) {
+      return titleCase(cleanTerm(subjectLead[1]));
+    }
+
+    const capitalPhrase = sentence.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\b/);
+    if (capitalPhrase && wordCount(capitalPhrase[0]) <= 3) {
+      return capitalPhrase[0];
+    }
+
+    return titleCase((keywords[0] || "Core concept").replace(/-/g, " "));
+  }
+
+  function isBadDefinitionSubject(subject) {
+    const clean = cleanSentence(subject);
+    const first = clean.split(/\s+/)[0]?.toLowerCase();
+    return (
+      !clean ||
+      /[,;:]/.test(clean) ||
+      /\b(which|that|who|where)\b/i.test(clean) ||
+      wordCount(clean) > 7 ||
+      ["in", "when", "if", "because", "although", "while", "during", "after", "before"].includes(first)
+    );
+  }
+
+  function trimConditionPhrase(phrase) {
+    return cleanTerm(phrase).replace(
+      /\s+(increases|decreases|rises|falls|changes|occurs|happens|becomes|starts|ends)$/i,
+      "",
+    );
+  }
+
+  function buildAreas(facts) {
+    const areaMap = new Map();
+    facts.forEach((fact) => {
+      if (!areaMap.has(fact.area)) {
+        areaMap.set(fact.area, { name: fact.area, count: 0, keywords: new Set() });
+      }
+      const area = areaMap.get(fact.area);
+      area.count += 1;
+      fact.keywords.slice(0, 4).forEach((keyword) => area.keywords.add(keyword));
+    });
+
+    return Array.from(areaMap.values())
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+      .map((area) => ({
+        name: area.name,
+        count: area.count,
+        keywords: Array.from(area.keywords).slice(0, 6),
+      }));
+  }
+
+  function dedupeFacts(facts) {
+    const seen = new Set();
+    return facts.filter((fact) => {
+      const key = normalizeKey(fact.sentence.replace(/\d+/g, "#"));
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function buildQuestion(fact, allFacts, settings) {
+    if (settings.variant === 4) {
+      return areaQuestion(fact, allFacts, settings);
+    }
+    if (fact.definition && settings.variant === 0) {
+      return definitionQuestion(fact, allFacts, settings);
+    }
+    if (fact.relation && settings.variant === 1) {
+      return relationQuestion(fact, allFacts, settings);
+    }
+    if (settings.variant === 2 || fact.list) {
+      return clozeQuestion(fact, allFacts, settings);
+    }
+    return claimQuestion(fact, allFacts, settings);
+  }
+
+  function areaQuestion(fact, allFacts, settings) {
+    const correct = fact.area;
+    const prompt = `Which study area does this detail most directly test? "${shorten(fact.sentence, 170)}"`;
+    const distractors = allFacts
+      .filter((other) => other.id !== fact.id)
+      .flatMap((other) => [other.area, ...other.keywords.slice(0, 2).map(titleCase)]);
+
+    return makeQuestion({
+      fact,
+      type: "area",
+      prompt,
+      correct,
+      distractors,
+      settings,
+      explanation: `This detail is mainly tied to ${fact.area}.`,
+    });
+  }
+
+  function definitionQuestion(fact, allFacts, settings) {
+    const correct = fact.definition.definition;
+    const prompt = `Which option best explains ${fact.definition.term}?`;
+    const distractors = [
+      ...allFacts
+        .filter((other) => other.id !== fact.id)
+        .map(factAnswerText),
+      changeKeyDetail(correct, fact, allFacts),
+      reverseClaim(correct),
+      absolutizeClaim(correct),
+    ];
+
+    return makeQuestion({
+      fact,
+      type: "definition",
+      prompt,
+      correct,
+      distractors,
+      settings,
+      explanation: `${fact.definition.term} is described in the text as ${lowerFirst(correct)}`,
+    });
+  }
+
+  function relationQuestion(fact, allFacts, settings) {
+    const relation = fact.relation;
+    const prompt = `According to the text, what does ${relation.subject} ${relation.verb}?`;
+    const correct = relation.object;
+    const distractors = [
+      ...allFacts
+        .filter((other) => other.id !== fact.id)
+        .map((other) => other.relation?.object || other.list?.members || getKeyPhrase(other)),
+      reverseClaim(`${relation.subject} ${relation.verb} ${relation.object}`),
+      changeKeyDetail(correct, fact, allFacts),
+      ...allFacts.filter((other) => other.id !== fact.id).map(factAnswerText),
+    ];
+
+    return makeQuestion({
+      fact,
+      type: "relationship",
+      prompt,
+      correct,
+      distractors,
+      settings,
+      explanation: `The relationship in the source is: ${relation.subject} ${relation.verb} ${relation.object}`,
+    });
+  }
+
+  function clozeQuestion(fact, allFacts, settings) {
+    const phrase = chooseBlankPhrase(fact);
+    const promptSentence = blankPhrase(fact.sentence, phrase);
+    const prompt = `Which option best completes this sentence? "${promptSentence}"`;
+    const distractors = [
+      ...allFacts.filter((other) => other.id !== fact.id).map(getKeyPhrase),
+      ...allFacts
+        .filter((other) => other.id !== fact.id)
+        .flatMap((other) => other.keywords.slice(0, 2).map(titleCase)),
+      changeKeyDetail(phrase, fact, allFacts),
+      reversePhrase(phrase),
+    ];
+
+    return makeQuestion({
+      fact,
+      type: "completion",
+      prompt,
+      correct: phrase,
+      distractors,
+      settings,
+      explanation: `The missing phrase is taken from the source sentence about ${fact.area}.`,
+    });
+  }
+
+  function claimQuestion(fact, allFacts, settings) {
+    const prompt = `Which statement best matches the source's point about ${fact.area}?`;
+    const correct = stripTrailing(fact.sentence);
+    const distractors = [
+      reverseClaim(correct),
+      negateClaim(correct),
+      absolutizeClaim(correct),
+      ...allFacts
+        .filter((other) => other.id !== fact.id)
+        .slice(0, 4)
+        .map(factAnswerText),
+      changeKeyDetail(correct, fact, allFacts),
+    ];
+
+    return makeQuestion({
+      fact,
+      type: "claim",
+      prompt,
+      correct,
+      distractors,
+      settings,
+      explanation: `The accurate statement keeps the original relationship and limits from the source.`,
+    });
+  }
+
+  function makeQuestion(payload) {
+    const rng = mulberry32(payload.settings.seed + hashString(payload.type + payload.fact.id));
+    const options = makeOptions(payload.correct, payload.distractors, rng);
+    const answer = options.find((option) => option.text === normalizeOption(payload.correct));
+    return {
+      id: `${payload.fact.id}-${payload.type}-${payload.settings.roundIndex}-${payload.settings.variant}`,
+      area: payload.fact.area,
+      type: payload.type,
+      prompt: payload.prompt,
+      options,
+      answerId: answer.id,
+      explanation: stripTrailing(payload.explanation),
+      source: payload.fact.source,
+    };
+  }
+
+  function makeOptions(correct, distractors, rng) {
+    const cleanCorrect = normalizeOption(correct);
+    const seen = new Set([normalizeKey(cleanCorrect)]);
+    const options = [{ id: "correct", text: cleanCorrect }];
+
+    distractors
+      .map(normalizeOption)
+      .filter(Boolean)
+      .forEach((text) => {
+        const key = normalizeKey(text);
+        if (options.length < 5 && key !== normalizeKey(cleanCorrect) && !seen.has(key)) {
+          seen.add(key);
+          options.push({ id: `d${options.length}`, text });
+        }
+      });
+
+    const fallback = [
+      "The text mentions the topic, but does not make this exact claim.",
+      "The statement reverses the relationship described in the source.",
+      "The statement is broader than the source supports.",
+      "The detail belongs to another area of the text.",
+      "The text presents this as a condition, not as the main answer.",
+    ];
+
+    fallback.forEach((text) => {
+      const key = normalizeKey(text);
+      if (options.length < 5 && !seen.has(key)) {
+        seen.add(key);
+        options.push({ id: `d${options.length}`, text });
+      }
+    });
+
+    return shuffle(options.slice(0, 5), rng).map((option, index) => ({
+      id: option.id === "correct" ? "answer" : `option-${index}-${hashString(option.text)}`,
+      text: option.text,
+    }));
+  }
+
+  function getKeyPhrase(fact) {
+    if (fact.definition) return fact.definition.term;
+    if (fact.list) return fact.list.members.split(/,| and | or /i).find((part) => wordCount(part) >= 1)?.trim();
+    if (fact.relation) return fact.relation.object.split(/,| and | or /i)[0].trim();
+    return fact.area || titleCase(fact.keywords[0] || "Core concept");
+  }
+
+  function chooseBlankPhrase(fact) {
+    if (fact.definition && wordCount(fact.definition.term) <= 5) return fact.definition.term;
+    if (fact.list) return getKeyPhrase(fact);
+    if (fact.relation && wordCount(fact.relation.object) <= 8) return fact.relation.object;
+    const phrase = extractNounishPhrase(fact.sentence);
+    if (phrase) return phrase;
+    return titleCase(fact.keywords[0] || fact.area);
+  }
+
+  function extractNounishPhrase(sentence) {
+    const matches = sentence.match(/\b[A-Za-z][A-Za-z'-]*(?:\s+[A-Za-z][A-Za-z'-]*){1,3}\b/g) || [];
+    return (
+      matches
+        .map((phrase) => phrase.trim())
+        .filter((phrase) => wordCount(phrase) >= 2 && !STOP_WORDS.has(phrase.split(" ")[0].toLowerCase()))
+        .sort((a, b) => b.length - a.length)[0] || ""
+    );
+  }
+
+  function blankPhrase(sentence, phrase) {
+    const escaped = escapeRegExp(phrase);
+    const replaced = sentence.replace(new RegExp(escaped, "i"), "_____");
+    return replaced === sentence ? `${shorten(sentence, 140)} _____` : shorten(replaced, 180);
+  }
+
+  function changeKeyDetail(text, fact, allFacts) {
+    const areaReplacements = allFacts
+      .filter((other) => other.id !== fact.id)
+      .flatMap((other) => [other.area, getKeyPhrase(other)])
+      .map((item) => normalizeOption(item))
+      .filter((item) => item && wordCount(item) <= 5 && !new RegExp(`\\b${escapeRegExp(item)}\\b`, "i").test(text));
+
+    const keywordReplacements = allFacts
+      .filter((other) => other.id !== fact.id)
+      .flatMap((other) => other.keywords.slice(0, 3).map(titleCase))
+      .map((item) => normalizeOption(item))
+      .filter((item) => item && wordCount(item) <= 3 && !new RegExp(`\\b${escapeRegExp(item)}\\b`, "i").test(text));
+
+    const targets = fact.keywords
+      .concat([fact.definition?.term, fact.area])
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length);
+
+    const usableTargets = targets.filter((item) => {
+      const key = normalizeKey(item);
+      return key.length > 3 && new RegExp(`\\b${escapeRegExp(item)}\\b`, "i").test(text);
+    });
+
+    const lateTarget = usableTargets.find((item) => {
+      const index = text.toLowerCase().indexOf(item.toLowerCase());
+      return index > text.length * 0.28;
+    });
+    const target = lateTarget || usableTargets[0];
+    const replacements = areaReplacements.concat(keywordReplacements);
+    const replacement = replacements.find((item) => normalizeKey(item) !== normalizeKey(target)) || "another source detail";
+    if (target) {
+      return replaceWithCase(text, target, replacement);
+    }
+    return swapKeyword(text, fact, allFacts);
+  }
+
+  function replaceWithCase(text, target, replacement) {
+    const pattern = new RegExp(`\\b${escapeRegExp(target)}\\b`, "i");
+    return text.replace(pattern, (match, offset) => {
+      if (offset > 0 && match.charAt(0) === match.charAt(0).toLowerCase()) {
+        return lowerFirst(replacement);
+      }
+      return replacement;
+    });
+  }
+
+  function factAnswerText(fact) {
+    if (fact.definition) return fact.definition.definition;
+    if (fact.relation) return `${fact.relation.subject} ${fact.relation.verb} ${fact.relation.object}`;
+    if (fact.list) return `${fact.list.subject} ${fact.list.verb} ${fact.list.members}`;
+    return stripTrailing(fact.sentence);
+  }
+
+  function swapKeyword(text, fact, allFacts) {
+    const replacementFact = allFacts.find((other) => other.id !== fact.id && other.area !== fact.area);
+    const replacement = replacementFact?.area || titleCase((replacementFact?.keywords?.[0] || "another concept"));
+    const targets = [fact.definition?.term, fact.area, ...fact.keywords].filter(Boolean);
+    const target = targets.find((item) => new RegExp(`\\b${escapeRegExp(item)}\\b`, "i").test(text));
+    if (!target) return `${text} in the context of ${replacement}`;
+    return text.replace(new RegExp(`\\b${escapeRegExp(target)}\\b`, "i"), replacement);
+  }
+
+  function reverseClaim(text) {
+    if (/light energy into chemical energy/i.test(text)) {
+      return text.replace(/light energy into chemical energy/i, "chemical energy into light energy");
+    }
+
+    const swaps = [
+      ["increases", "decreases"],
+      ["increase", "decrease"],
+      ["decreases", "increases"],
+      ["decrease", "increase"],
+      ["reduces", "raises"],
+      ["reduce", "increase"],
+      ["raises", "reduces"],
+      ["raise", "reduce"],
+      ["prevents", "causes"],
+      ["prevent", "cause"],
+      ["causes", "prevents"],
+      ["cause", "prevent"],
+      ["before", "after"],
+      ["after", "before"],
+      ["uses", "produces"],
+      ["use", "produce"],
+      ["produces", "uses"],
+      ["produce", "use"],
+      ["split", "combined"],
+      ["enter", "leave"],
+      ["released", "absorbed"],
+      ["absorbed", "released"],
+    ];
+    for (const [from, to] of swaps) {
+      const pattern = new RegExp(`\\b${from}\\b`, "i");
+      if (pattern.test(text)) return text.replace(pattern, to);
+    }
+    return negateClaim(text);
+  }
+
+  function negateClaim(text) {
+    const clean = stripTrailing(text);
+    const replacements = [
+      [/\bcan\b/i, "cannot"],
+      [/\bdoes\b/i, "does not"],
+      [/\bdo\b/i, "do not"],
+      [/\bis\b/i, "is not"],
+      [/\bare\b/i, "are not"],
+      [/\buses\b/i, "does not use"],
+      [/\bproduces\b/i, "does not produce"],
+      [/\brequires\b/i, "does not require"],
+    ];
+
+    for (const [pattern, replacement] of replacements) {
+      if (pattern.test(clean)) return clean.replace(pattern, replacement);
+    }
+
+    return `The text does not connect this idea to ${lowerFirst(clean)}`;
+  }
+
+  function reversePhrase(phrase) {
+    if (/\band\b/i.test(phrase)) {
+      return phrase.split(/\band\b/i).reverse().join(" and ").trim();
+    }
+    return `not ${lowerFirst(phrase)}`;
+  }
+
+  function absolutizeClaim(text) {
+    if (/\busually\b|\bcan\b|\bmay\b|\boften\b|\bsome\b/i.test(text)) {
+      return text
+        .replace(/\busually\b/gi, "always")
+        .replace(/\bcan\b/gi, "must")
+        .replace(/\bmay\b/gi, "always")
+        .replace(/\boften\b/gi, "always")
+        .replace(/\bsome\b/gi, "all");
+    }
+    return "";
+  }
+
+  function normalizeOption(text) {
+    const clean = stripTrailing(cleanSentence(text));
+    if (!clean) return "";
+    return clean.length > 240 ? `${clean.slice(0, 237).trim()}...` : clean;
+  }
+
+  function cleanTerm(term) {
+    return stripTrailing(cleanSentence(term))
+      .replace(/^(the|a|an)\s+/i, "")
+      .replace(/\s+(that|which|who)$/i, "")
+      .trim();
+  }
+
+  function stripTrailing(text) {
+    return String(text || "")
+      .replace(/[.!?;:]+$/g, "")
+      .trim();
+  }
+
+  function shorten(text, max) {
+    const clean = cleanSentence(text);
+    if (clean.length <= max) return clean;
+    const sliced = clean.slice(0, max - 3);
+    return `${sliced.slice(0, Math.max(0, sliced.lastIndexOf(" ")))}...`;
+  }
+
+  function lowerFirst(text) {
+    const clean = String(text || "").trim();
+    return clean.charAt(0).toLowerCase() + clean.slice(1);
+  }
+
+  function titleCase(text) {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/\b[a-z]/g, (char) => char.toUpperCase())
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function normalizeKey(text) {
+    return String(text || "")
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+  }
+
+  function escapeRegExp(text) {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function hashString(text) {
+    let hash = 2166136261;
+    for (let i = 0; i < String(text).length; i += 1) {
+      hash ^= String(text).charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  function mulberry32(seed) {
+    let value = typeof seed === "number" ? seed >>> 0 : hashString(seed);
+    return function random() {
+      value += 0x6d2b79f5;
+      let t = value;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function shuffle(items, rng) {
+    const copy = items.slice();
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(rng() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
+
+  return {
+    SAMPLE_TEXT,
+    createSession,
+    generateRound,
+    gradeRound,
+    _private: {
+      splitSentences,
+      buildFact,
+      tokenize,
+      hashString,
+    },
+  };
+});
+
+</script>
+    <script>
+(function (root, factory) {
+  const api = factory();
+  if (typeof module === "object" && module.exports) {
+    module.exports = api;
+  }
+  root.AiQuizService = api;
+})(typeof window !== "undefined" ? window : globalThis, function () {
+  "use strict";
+
+  const ACCESS_CODE_KEY = "adaptiveQuizAccessCode";
+
+  async function generateQuiz(options) {
+    const settings = Object.assign(
+      {
+        text: "",
+        roundSize: 5,
+        weakAreas: [],
+        previousMistakes: [],
+        roundIndex: 1,
+      },
+      options || {},
+    );
+
+    let response;
+    try {
+      response = await fetch(getBackendUrl("/api/generate-quiz"), {
+        method: "POST",
+        headers: getRequestHeaders(),
+        body: JSON.stringify(settings),
+      });
+    } catch (error) {
+      throw new Error("Could not reach the quiz backend. If you are running it locally, start it with Start Adaptive Quiz Studio.bat and keep its window open.");
+    }
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const message = payload?.error || `Backend request failed with status ${response.status}`;
+      throw requestError(message, response.status);
+    }
+
+    return normalizeAiRound(payload, settings.roundIndex);
+  }
+
+  async function getConfig() {
+    const response = await fetch(getBackendUrl("/api/config"));
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw requestError(payload?.error || "Could not load app settings", response.status);
+    }
+    return payload;
+  }
+
+  async function verifyAccessCode(accessCode) {
+    const cleanCode = cleanText(accessCode);
+    const response = await fetch(getBackendUrl("/api/verify-access"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessCode: cleanCode }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw requestError(payload?.error || "Access code is incorrect", response.status);
+    }
+    setAccessCode(cleanCode);
+    return payload;
+  }
+
+  function getBackendUrl(path) {
+    const apiPath = path || "/api/generate-quiz";
+    if (typeof window !== "undefined" && window.location.protocol === "file:") {
+      return `http://127.0.0.1:4173${apiPath}`;
+    }
+    return apiPath;
+  }
+
+  function getRequestHeaders() {
+    const headers = { "Content-Type": "application/json" };
+    const accessCode = getAccessCode();
+    if (accessCode) headers["X-Access-Code"] = accessCode;
+    return headers;
+  }
+
+  function getAccessCode() {
+    if (typeof window === "undefined" || !window.sessionStorage) return "";
+    return window.sessionStorage.getItem(ACCESS_CODE_KEY) || "";
+  }
+
+  function setAccessCode(accessCode) {
+    if (typeof window === "undefined" || !window.sessionStorage) return;
+    window.sessionStorage.setItem(ACCESS_CODE_KEY, cleanText(accessCode));
+  }
+
+  function requestError(message, status) {
+    const error = new Error(message);
+    error.status = status;
+    error.accessDenied = status === 401 || status === 403;
+    return error;
+  }
+
+  function buildSystemPrompt() {
+    return [
+      "You are an expert teacher and assessment designer.",
+      "Generate exactly the requested number of multiple-choice questions from the supplied educational text.",
+      "Detect the dominant language of the supplied source text.",
+      "Write every learner-facing string in the same language as the source text, including coverageSummary, area, skillTag, question, options, explanation, sourceQuote, and mapTopic.",
+      "Keep JSON property names in English exactly as specified, but do not default the quiz content to English unless the source text is English.",
+      "If the source text mixes languages, use the dominant language while preserving names, technical terms, and quoted phrases as they appear in the source.",
+      "Each question must have exactly five answer options.",
+      "correctIndex must be a zero-based number from 0 to 4.",
+      "Each question must have exactly one correct option.",
+      "The correct answer must not be identical to the question.",
+      "All four incorrect options must be clearly wrong, incomplete, or unsupported by the source text.",
+      "Do not include any distractor that could reasonably be accepted as another correct answer.",
+      "Questions should be tricky but fair: distractors should be plausible misconceptions based on the text, not silly or obviously unrelated.",
+      "Use only the supplied source text. Do not add outside facts.",
+      "Avoid all-of-the-above, none-of-the-above, joke answers, and answer options that are duplicated or nearly duplicated.",
+      "For adaptive rounds, focus most questions on the weak areas and mistakes provided.",
+      "Include the requested number as questionCount in the JSON response.",
+      "Return only valid JSON matching this shape: {\"coverageSummary\":\"string\",\"questionCount\":5,\"questions\":[{\"area\":\"string\",\"skillTag\":\"string\",\"question\":\"string\",\"options\":[\"string\",\"string\",\"string\",\"string\",\"string\"],\"correctIndex\":0}]}",
+    ].join(" ");
+  }
+
+  function buildUserPrompt(settings) {
+    const weakAreas = settings.weakAreas?.length ? settings.weakAreas.join(", ") : "None yet";
+    const mistakes = settings.previousMistakes?.length
+      ? settings.previousMistakes
+          .slice(-8)
+          .map((item, index) => `${index + 1}. Area: ${item.area}. Question: ${item.prompt}. Correct: ${item.correct}. Chosen: ${item.chosen || "No answer"}.`)
+          .join("\n")
+      : "No previous mistakes.";
+
+    return [
+      `Round: ${settings.roundIndex || 1}`,
+      `Number of questions to generate: ${settings.roundSize || 5}`,
+      `Weak areas: ${weakAreas}`,
+      "Previous mistakes:",
+      mistakes,
+      "Source text:",
+      settings.text,
+      "Output language: use the same dominant language as the source text for all visible quiz content.",
+      "Generate the next quiz round now.",
+    ].join("\n\n");
+  }
+
+  function normalizeAiRound(payload, roundIndex) {
+    if (!payload || !Array.isArray(payload.questions)) {
+      throw new Error("The AI response had the wrong quiz shape");
+    }
+
+    if (isAppReadyRound(payload)) {
+      return validateAppReadyRound(payload, roundIndex);
+    }
+
+    const expectedCount = getExpectedQuestionCount(payload, roundIndex);
+    const questions = payload.questions.slice(0, expectedCount).map((question, index) => {
+      const rawOptions = Array.isArray(question.options) ? question.options.map(cleanText).filter(Boolean).slice(0, 5) : [];
+      const correctIndex = Number(question.correctIndex);
+
+      if (rawOptions.length !== 5 || correctIndex < 0 || correctIndex > 4) {
+        throw new Error("The AI returned a question without exactly five valid options");
+      }
+
+      const correctText = rawOptions[correctIndex];
+      const options = uniqueByKey(rawOptions, normalizeKey);
+      const normalizedCorrectIndex = options.findIndex((option) => normalizeKey(option) === normalizeKey(correctText));
+
+      if (options.length !== 5 || normalizedCorrectIndex < 0) {
+        throw new Error("The AI returned duplicate options or an invalid answer index");
+      }
+
+      if (hasNearDuplicateCorrectOption(options, normalizedCorrectIndex)) {
+        throw new Error("The AI returned another option too similar to the correct answer");
+      }
+
+      const randomizedOptions = randomizeOptions(options, normalizedCorrectIndex);
+
+      return {
+        id: `ai-${roundIndex}-${index}-${hashString(question.question || "")}`,
+        area: cleanText(question.area) || "Source concept",
+        type: "ai",
+        prompt: cleanText(question.question),
+        options: randomizedOptions.map((option, optionIndex) => ({
+          id: option.isCorrect ? "answer" : `ai-option-${optionIndex}-${hashString(option.text)}`,
+          text: option.text,
+        })),
+        answerId: "answer",
+        explanation: cleanText(question.explanation) || "The correct answer follows directly from the source text.",
+        source: cleanText(question.sourceQuote) || "Source text",
+        skillTag: cleanText(question.skillTag) || "Comprehension",
+        mapTopic: cleanMapTopic(question.mapTopic || question.skillTag || question.area || `Q${index + 1}`),
+      };
+    });
+
+    if (questions.length !== expectedCount) {
+      throw new Error(`The AI did not return exactly ${expectedCount} questions`);
+    }
+
+    return {
+      coverageSummary: cleanText(payload.coverageSummary || ""),
+      modelUsed: cleanText(payload.modelUsed || ""),
+      questions,
+    };
+  }
+
+  function isAppReadyRound(payload) {
+    return payload.questions.every((question) => {
+      return (
+        question &&
+        typeof question.prompt === "string" &&
+        Array.isArray(question.options) &&
+        question.options.every((option) => option && typeof option.text === "string") &&
+        typeof question.answerId === "string"
+      );
+    });
+  }
+
+  function validateAppReadyRound(payload, roundIndex) {
+    const expectedCount = getExpectedQuestionCount(payload, roundIndex);
+    const questions = payload.questions.slice(0, expectedCount).map((question, index) => {
+      const options = question.options.slice(0, 5).map((option, optionIndex) => ({
+        id: cleanText(option.id) || `ai-option-${optionIndex}-${hashString(option.text)}`,
+        text: cleanText(option.text),
+      }));
+      const answerId = cleanText(question.answerId);
+      const answerExists = options.some((option) => option.id === answerId);
+      const uniqueCount = uniqueByKey(options.map((option) => option.text), normalizeKey).length;
+
+      if (options.length !== 5 || !answerExists || uniqueCount !== 5) {
+        throw new Error("The backend returned an invalid quiz question");
+      }
+
+      const answerIndex = options.findIndex((option) => option.id === answerId);
+      if (hasNearDuplicateCorrectOption(options.map((option) => option.text), answerIndex)) {
+        throw new Error("The backend returned another option too similar to the correct answer");
+      }
+
+      const randomizedOptions = randomizeOptions(
+        options.map((option) => option.text),
+        answerIndex,
+      );
+
+      return {
+        id: cleanText(question.id) || `ai-${roundIndex}-${index}-${hashString(question.prompt || "")}`,
+        area: cleanText(question.area) || "Source concept",
+        type: cleanText(question.type) || "ai",
+        prompt: cleanText(question.prompt),
+        options: randomizedOptions.map((option, optionIndex) => ({
+          id: option.isCorrect ? "answer" : `ai-option-${optionIndex}-${hashString(option.text)}`,
+          text: option.text,
+        })),
+        answerId: "answer",
+        explanation: cleanText(question.explanation) || "The correct answer follows directly from the source text.",
+        source: cleanText(question.source) || "Source text",
+        skillTag: cleanText(question.skillTag) || "Comprehension",
+        mapTopic: cleanMapTopic(question.mapTopic || question.skillTag || question.area || `Q${index + 1}`),
+      };
+    });
+
+    if (questions.length !== expectedCount) {
+      throw new Error(`The backend did not return exactly ${expectedCount} questions`);
+    }
+
+    return {
+      coverageSummary: cleanText(payload.coverageSummary || ""),
+      modelUsed: cleanText(payload.modelUsed || ""),
+      questions,
+    };
+  }
+
+  function getExpectedQuestionCount(payload, fallback) {
+    const explicit = Number(payload?.questionCount || payload?.roundSize);
+    if (Number.isInteger(explicit) && explicit > 0) return explicit;
+    const fallbackNumber = Number(fallback);
+    if (Number.isInteger(fallbackNumber) && fallbackNumber > 0) return fallbackNumber;
+    if (Array.isArray(payload?.questions) && payload.questions.length > 0) return payload.questions.length;
+    return 5;
+  }
+
+  function extractGeminiText(payload) {
+    const parts = payload?.candidates?.[0]?.content?.parts || [];
+    return parts.map((part) => part.text || "").join("").trim();
+  }
+
+  function parseJsonFromText(text) {
+    const clean = String(text || "").trim();
+    try {
+      return JSON.parse(clean);
+    } catch (firstError) {
+      const unfenced = clean.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+      try {
+        return JSON.parse(unfenced);
+      } catch (secondError) {
+        const start = unfenced.indexOf("{");
+        const end = unfenced.lastIndexOf("}");
+        if (start >= 0 && end > start) {
+          return JSON.parse(unfenced.slice(start, end + 1));
+        }
+        throw firstError;
+      }
+    }
+  }
+
+  function cleanText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function cleanMapTopic(value) {
+    const words = cleanText(value).split(/\s+/).filter(Boolean);
+    return words.slice(0, 3).join(" ") || "Topic";
+  }
+
+  function uniqueByKey(items, keyFn) {
+    const seen = new Set();
+    return items.filter((item) => {
+      const key = keyFn(item);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function randomizeOptions(options, correctIndex) {
+    const decorated = options.map((option, index) => ({
+      text: cleanText(option),
+      isCorrect: index === correctIndex,
+    }));
+    return shuffle(decorated);
+  }
+
+  function hasNearDuplicateCorrectOption(options, correctIndex) {
+    const correct = cleanText(options[correctIndex]);
+    return options.some((option, index) => index !== correctIndex && areOptionsTooSimilar(correct, option));
+  }
+
+  function areOptionsTooSimilar(first, second) {
+    const firstKey = normalizeKey(first);
+    const secondKey = normalizeKey(second);
+    if (!firstKey || !secondKey) return false;
+    if (firstKey === secondKey) return true;
+    if (firstKey.length > 25 && secondKey.length > 25 && (firstKey.includes(secondKey) || secondKey.includes(firstKey))) {
+      return true;
+    }
+
+    const firstTokens = meaningfulTokens(firstKey);
+    const secondTokens = meaningfulTokens(secondKey);
+    if (firstTokens.length < 4 || secondTokens.length < 4) return false;
+
+    const secondSet = new Set(secondTokens);
+    const overlap = firstTokens.filter((token) => secondSet.has(token)).length;
+    const union = new Set(firstTokens.concat(secondTokens)).size;
+    return overlap / Math.min(firstTokens.length, secondTokens.length) >= 0.86 && overlap / union >= 0.72;
+  }
+
+  function meaningfulTokens(key) {
+    const stopWords = new Set(["the", "and", "that", "this", "with", "from", "into", "about", "because", "when", "while", "which"]);
+    return key.split(/\s+/).filter((token) => token.length > 2 && !stopWords.has(token));
+  }
+
+  function shuffle(items) {
+    const copy = items.slice();
+    for (let index = copy.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+    }
+    return copy;
+  }
+
+  function normalizeKey(text) {
+    return String(text || "")
+      .normalize("NFKC")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, " ")
+      .trim();
+  }
+
+  function hashString(text) {
+    let hash = 2166136261;
+    for (let i = 0; i < String(text).length; i += 1) {
+      hash ^= String(text).charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+  }
+
+  return {
+    generateQuiz,
+    getConfig,
+    verifyAccessCode,
+    getAccessCode,
+    _private: {
+      buildSystemPrompt,
+      buildUserPrompt,
+      normalizeAiRound,
+      extractGeminiText,
+      parseJsonFromText,
+      getBackendUrl,
+      isAppReadyRound,
+    },
+  };
+});
+
+</script>
+    <script>
+(function () {
+  "use strict";
+
+  const els = {
+    accessGate: document.getElementById("accessGate"),
+    accessForm: document.getElementById("accessForm"),
+    accessCodeInput: document.getElementById("accessCodeInput"),
+    accessError: document.getElementById("accessError"),
+    accessSubmitButton: document.getElementById("accessSubmitButton"),
+    themeToggle: document.getElementById("themeToggle"),
+    themeToggleText: document.getElementById("themeToggleText"),
+    sourceText: document.getElementById("sourceText"),
+    sampleButton: document.getElementById("sampleButton"),
+    generateButton: document.getElementById("generateButton"),
+    clearButton: document.getElementById("clearButton"),
+    editButton: document.getElementById("editButton"),
+    generationLoader: document.getElementById("generationLoader"),
+    loadingText: document.getElementById("loadingText"),
+    loadingPercent: document.getElementById("loadingPercent"),
+    loadingBar: document.getElementById("loadingBar"),
+    statusMessage: document.getElementById("statusMessage"),
+    emptyState: document.getElementById("emptyState"),
+    quizForm: document.getElementById("quizForm"),
+    quizActions: document.getElementById("quizActions"),
+    prevQuestionButton: document.getElementById("prevQuestionButton"),
+    nextQuestionButton: document.getElementById("nextQuestionButton"),
+    submitButton: document.getElementById("submitButton"),
+    progressText: document.getElementById("progressText"),
+    progressBar: document.getElementById("progressBar"),
+    report: document.getElementById("report"),
+    reportScore: document.getElementById("reportScore"),
+    weakAreaSummary: document.getElementById("weakAreaSummary"),
+    feedbackList: document.getElementById("feedbackList"),
+    nextRoundButton: document.getElementById("nextRoundButton"),
+    restartButton: document.getElementById("restartButton"),
+    roundLabel: document.getElementById("roundLabel"),
+    mapSnapshots: document.getElementById("mapSnapshots"),
+    canvas: document.getElementById("masteryCanvas"),
+  };
+
+  const state = {
+    session: null,
+    questions: [],
+    answers: {},
+    currentQuestionIndex: 0,
+    advanceTimer: null,
+    transitionTimer: null,
+    isTransitioning: false,
+    roundIndex: 1,
+    history: [],
+    mastery: {},
+    weakAreas: [],
+    previousQuestionIds: [],
+    aiMode: false,
+    aiModelUsed: "",
+    sourceText: "",
+    roundSize: 5,
+    accessRequired: false,
+  };
+
+  initTheme();
+
+  els.accessForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await verifyAccessCode();
+  });
+
+  els.sampleButton.addEventListener("click", () => {
+    els.sourceText.value = window.QuizEngine.SAMPLE_TEXT;
+    hideLoading();
+    clearStatus();
+  });
+
+  els.clearButton.addEventListener("click", () => {
+    resetQuiz({ clearSource: true, clearStatusMessage: true });
+  });
+
+  els.editButton.addEventListener("click", () => {
+    els.sourceText.focus();
+  });
+
+  els.generateButton.addEventListener("click", () => {
+    generateQuiz();
+  });
+
+  els.themeToggle.addEventListener("click", () => {
+    setTheme(getTheme() === "dark" ? "light" : "dark");
+  });
+
+  function initTheme() {
+    setTheme(getStoredTheme(), { persist: false });
+  }
+
+  function getStoredTheme() {
+    try {
+      return localStorage.getItem("adaptiveQuizTheme") === "dark" ? "dark" : "light";
+    } catch (error) {
+      return "light";
+    }
+  }
+
+  function getTheme() {
+    return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  }
+
+  function setTheme(theme, options) {
+    const nextTheme = theme === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = nextTheme;
+    els.themeToggle.setAttribute("aria-pressed", String(nextTheme === "dark"));
+    els.themeToggleText.textContent = nextTheme === "dark" ? "Light mode" : "Dark mode";
+
+    if (options?.persist !== false) {
+      try {
+        localStorage.setItem("adaptiveQuizTheme", nextTheme);
+      } catch (error) {
+        // Theme still changes for this session if storage is blocked.
+      }
+    }
+
+    renderInsights();
+  }
+
+  async function generateQuiz() {
+    const text = els.sourceText.value.trim();
+    const roundSize = getQuestionCountForText(text);
+
+    clearStatus();
+    setLoading(8, "Reading your text");
+
+    if (text.length < 40) {
+      showStatus("Paste a little more educational text first. Two or three clear facts is enough.");
+      hideLoading();
+      return;
+    }
+
+    els.generateButton.disabled = true;
+    els.generateButton.textContent = "Generating";
+
+    try {
+      await pause(120);
+      setLoading(34, "Finding teachable points");
+      await pause(120);
+
+      const session = window.QuizEngine.createSession(text, { roundSize });
+
+      if (!session.facts.length) {
+        showStatus("I could not find enough clear study points. Try pasting notes with a few definitions, causes, steps, or examples.");
+        hideLoading();
+        return;
+      }
+
+      state.session = session;
+      state.sourceText = text;
+      state.aiMode = true;
+      state.roundIndex = 1;
+      state.history = [];
+      state.mastery = {};
+      state.weakAreas = [];
+      state.previousQuestionIds = [];
+      state.aiModelUsed = "";
+      state.roundSize = roundSize;
+      clearWeakAreaSummary();
+
+      setLoading(58, "Asking Gemini for better questions");
+      await startAiRound([]);
+
+      const started = state.questions.length > 0;
+      if (!started) {
+        showStatus("The text was readable, but I could not form quiz questions from it. Add one or two more factual sentences and try again.");
+        hideLoading();
+        return;
+      }
+
+      setLoading(100, "Quiz ready");
+      showStatus(getSuccessMessage(), "success");
+      els.editButton.classList.remove("hidden");
+      await pause(450);
+      hideLoading();
+    } catch (error) {
+      console.error(error);
+      if (error.accessDenied) {
+        hideLoading();
+        showAccessGate(error.message);
+        showStatus("Enter the access code to use AI questions.");
+        return;
+      }
+      if (state.session?.facts?.length) {
+        setLoading(72, "Using offline fallback");
+        state.aiMode = false;
+        const started = startRound([]);
+        hideLoading();
+        showStatus(started ? `Gemini backend failed: ${error.message}. I built an offline fallback quiz instead.` : `Gemini backend failed: ${error.message}.`, started ? "success" : undefined);
+      } else {
+        hideLoading();
+        showStatus(`Quiz generation failed: ${error.message}`);
+      }
+    } finally {
+      els.generateButton.disabled = false;
+      els.generateButton.textContent = "Generate quiz";
+    }
+  }
+
+  els.quizForm.addEventListener("change", (event) => {
+    if (event.target.matches("input[type='radio']")) {
+      state.answers[event.target.name] = event.target.value;
+      updateProgress();
+      renderInsights();
+    }
+  });
+
+  els.prevQuestionButton.addEventListener("click", () => {
+    moveToQuestion(state.currentQuestionIndex - 1);
+  });
+
+  els.nextQuestionButton.addEventListener("click", () => {
+    moveToQuestion(state.currentQuestionIndex + 1);
+  });
+
+  els.quizForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    if (!state.questions.length) return;
+
+    const result = window.QuizEngine.gradeRound(state.questions, state.answers);
+    state.history.push(result);
+    state.weakAreas = result.weakAreas;
+    state.previousQuestionIds.push(...state.questions.map((question) => question.id));
+    updateMastery(result);
+    renderReport(result);
+    renderInsights();
+    els.quizActions.classList.add("hidden");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  els.nextRoundButton.addEventListener("click", async () => {
+    state.roundIndex += 1;
+    clearStatus();
+    els.nextRoundButton.disabled = true;
+
+    try {
+      if (state.aiMode) {
+        setLoading(18, "Preparing adaptive AI round");
+        await startAiRound(state.weakAreas);
+        setLoading(100, "Follow-up ready");
+        showStatus("Built a new AI round from the missed areas.", "success");
+        await pause(350);
+        hideLoading();
+      } else {
+        startRound(state.weakAreas);
+      }
+    } catch (error) {
+      console.error(error);
+      if (error.accessDenied) {
+        showAccessGate(error.message);
+        showStatus("Enter the access code to continue with AI questions.");
+        return;
+      }
+      if (state.session?.facts?.length) {
+        state.aiMode = false;
+        startRound(state.weakAreas);
+        showStatus(`AI follow-up failed: ${error.message}. I switched to the offline fallback.`, "success");
+      } else {
+        showStatus(`AI follow-up failed: ${error.message}`);
+      }
+      hideLoading();
+    } finally {
+      els.nextRoundButton.disabled = false;
+    }
+  });
+
+  els.restartButton.addEventListener("click", () => {
+    resetQuiz({ clearSource: true, clearStatusMessage: true });
+    els.sourceText.focus();
+  });
+
+  window.addEventListener("resize", () => renderMasteryCanvas());
+
+  async function startAiRound(weakAreas) {
+    setLoading(74, weakAreas.length ? "Targeting weak areas" : "Checking question quality");
+    const mistakes = state.history.flatMap((result) => result.items.filter((item) => !item.isCorrect));
+    const aiRound = await window.AiQuizService.generateQuiz({
+      text: state.sourceText,
+      roundSize: state.roundSize,
+      weakAreas,
+      previousMistakes: mistakes,
+      roundIndex: state.roundIndex,
+    });
+
+    state.answers = {};
+    state.questions = aiRound.questions;
+    state.currentQuestionIndex = 0;
+    state.aiModelUsed = aiRound.modelUsed || "Gemini";
+    syncAiAreas(aiRound.questions);
+    renderActiveRound();
+    return true;
+  }
+
+  function startRound(weakAreas) {
+    state.answers = {};
+    state.currentQuestionIndex = 0;
+    state.questions = window.QuizEngine.generateRound(state.session, {
+      weakAreas,
+      roundIndex: state.roundIndex,
+      previousQuestionIds: state.previousQuestionIds,
+      roundSize: state.roundSize,
+    });
+
+    if (!state.questions.length) {
+      return false;
+    }
+
+    renderActiveRound();
+    return true;
+  }
+
+  function renderActiveRound() {
+    els.roundLabel.textContent = `Round ${state.roundIndex}`;
+    els.emptyState.classList.add("hidden");
+    els.report.classList.add("hidden");
+    els.quizForm.classList.remove("hidden");
+    els.quizActions.classList.remove("hidden");
+    renderQuestions();
+    renderInsights();
+    updateProgress();
+  }
+
+  function syncAiAreas(questions) {
+    const areaMap = new Map();
+    questions.forEach((question) => {
+      const current = areaMap.get(question.area) || { name: question.area, count: 0, keywords: [] };
+      current.count += 1;
+      if (question.skillTag && !current.keywords.includes(question.skillTag)) current.keywords.push(question.skillTag);
+      areaMap.set(question.area, current);
+    });
+
+    state.session = state.session || { facts: [], areas: [], hash: Date.now(), config: { roundSize: 5 } };
+    const existing = state.session.areas || [];
+    const aiAreas = Array.from(areaMap.values());
+    const merged = new Map(existing.map((area) => [area.name, area]));
+    aiAreas.forEach((area) => merged.set(area.name, area));
+    state.session.areas = Array.from(merged.values()).slice(0, 8);
+  }
+
+  function renderQuestions(direction) {
+    if (!state.questions.length) {
+      els.quizForm.innerHTML = "";
+      return;
+    }
+
+    state.currentQuestionIndex = clamp(state.currentQuestionIndex, 0, state.questions.length - 1);
+    const question = state.questions[state.currentQuestionIndex];
+    const selectedAnswer = state.answers[question.id];
+    const options = question.options
+      .map((option, optionIndex) => {
+        const letter = String.fromCharCode(65 + optionIndex);
+        const checked = selectedAnswer === option.id ? "checked" : "";
+        return `
+          <label class="option-row">
+            <input type="radio" name="${escapeHtml(question.id)}" value="${escapeHtml(option.id)}" ${checked} />
+            <span class="option-letter">${letter}</span>
+            <span>${escapeHtml(option.text)}</span>
+          </label>
+        `;
+      })
+      .join("");
+
+    els.quizForm.innerHTML = `
+      <fieldset class="question-card">
+        <div class="question-meta">
+          <span>Question ${state.currentQuestionIndex + 1} of ${state.questions.length}</span>
+          <span class="area-chip">${escapeHtml(question.area)}</span>
+        </div>
+        <legend>${escapeHtml(question.prompt)}</legend>
+        <div class="option-grid">${options}</div>
+      </fieldset>
+    `;
+
+    const card = els.quizForm.querySelector(".question-card");
+    if (card && direction) {
+      card.classList.add(direction === "backward" ? "question-card-enter-backward" : "question-card-enter-forward");
+    }
+  }
+
+  function updateProgress() {
+    const answered = Object.keys(state.answers).length;
+    const total = state.questions.length;
+    const pct = total ? Math.round((answered / total) * 100) : 0;
+    els.progressText.textContent = `${answered} of ${total} answered`;
+    els.progressBar.style.width = `${pct}%`;
+    els.submitButton.disabled = answered !== total;
+    els.prevQuestionButton.disabled = !total || state.currentQuestionIndex === 0;
+    els.nextQuestionButton.disabled =
+      !total ||
+      state.currentQuestionIndex >= total - 1 ||
+      !state.answers[state.questions[state.currentQuestionIndex]?.id];
+    els.submitButton.classList.toggle("hidden", state.currentQuestionIndex < total - 1);
+    els.nextQuestionButton.classList.toggle("hidden", state.currentQuestionIndex >= total - 1);
+  }
+
+  function moveToQuestion(index) {
+    clearTimeout(state.advanceTimer);
+    if (!state.questions.length) return;
+    if (state.isTransitioning) return;
+
+    const targetIndex = clamp(index, 0, state.questions.length - 1);
+    if (targetIndex === state.currentQuestionIndex) return;
+
+    const direction = targetIndex > state.currentQuestionIndex ? "forward" : "backward";
+    state.isTransitioning = true;
+    els.quizForm.classList.remove("question-stack-leave-forward", "question-stack-leave-backward");
+    els.quizForm.classList.add(direction === "backward" ? "question-stack-leave-backward" : "question-stack-leave-forward");
+
+    clearTimeout(state.transitionTimer);
+    state.transitionTimer = setTimeout(() => {
+      state.currentQuestionIndex = targetIndex;
+      els.quizForm.classList.remove("question-stack-leave-forward", "question-stack-leave-backward");
+      renderQuestions(direction);
+      renderInsights();
+      updateProgress();
+      state.isTransitioning = false;
+    }, 130);
+  }
+
+  function renderReport(result) {
+    els.report.classList.remove("hidden");
+    els.reportScore.textContent = `${result.correct}/${result.total}`;
+    els.nextRoundButton.classList.toggle("hidden", result.mastered);
+    renderWeakAreaSummary(result);
+
+    els.feedbackList.innerHTML = result.items
+      .map((item, index) => {
+        const className = item.isCorrect ? "correct" : "wrong";
+        const label = item.isCorrect ? "Correct" : "Incorrect";
+        return `
+          <article class="feedback-item ${className}">
+            <div class="feedback-title">
+              <span>Question ${index + 1}</span>
+              <span>${label}</span>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+
+    if (result.mastered) {
+      renderInsights();
+    } else {
+      renderInsights();
+    }
+  }
+
+  function renderWeakAreaSummary(result) {
+    const weakAreas = result.weakAreas || [];
+    els.weakAreaSummary.classList.remove("hidden");
+    if (!weakAreas.length) {
+      els.weakAreaSummary.textContent = "All correct, well done!";
+      els.weakAreaSummary.classList.add("mastered");
+      return;
+    }
+
+    const label = weakAreas.length === 1 ? "Weak area" : "Weak areas";
+    els.weakAreaSummary.innerHTML = `<strong>${label}:</strong> ${weakAreas.map(escapeHtml).join(", ")}`;
+    els.weakAreaSummary.classList.remove("mastered");
+  }
+
+  function clearWeakAreaSummary() {
+    els.weakAreaSummary.classList.add("hidden");
+    els.weakAreaSummary.textContent = "";
+    els.weakAreaSummary.classList.remove("mastered");
+  }
+
+  function renderInsights() {
+    renderMapSnapshots();
+    renderMasteryCanvas();
+  }
+
+  function renderMapSnapshots() {
+    const colors = getThemeColors();
+    const completedRounds = state.history.filter((result) => result?.items?.length);
+    els.mapSnapshots.classList.toggle("hidden", completedRounds.length === 0);
+    els.mapSnapshots.innerHTML = "";
+
+    completedRounds.forEach((result, index) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 64;
+      canvas.height = 64;
+      canvas.className = "map-snapshot";
+      canvas.setAttribute("aria-label", `Round ${index + 1}: ${result.correct} of ${result.total} correct`);
+      drawSnapshotMap(canvas, result, colors);
+      els.mapSnapshots.appendChild(canvas);
+    });
+  }
+
+  function drawSnapshotMap(canvas, result, colors) {
+    const ctx = canvas.getContext("2d");
+    const width = canvas.width;
+    const height = canvas.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = 18;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = colors.mapBg;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = colors.line;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    result.items.forEach((item, index) => {
+      const angle = (Math.PI * 2 * index) / result.items.length - Math.PI / 2;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+
+      ctx.strokeStyle = colors.mapLink;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+
+      ctx.fillStyle = item.isCorrect ? colors.correct : colors.pending;
+      ctx.beginPath();
+      ctx.arc(x, y, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function renderMasteryCanvas() {
+    const canvas = els.canvas;
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.max(320, Math.round(rect.width * dpr));
+    const height = Math.max(220, Math.round(rect.height * dpr));
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext("2d");
+    ctx.scale(dpr, dpr);
+    const cssWidth = width / dpr;
+    const cssHeight = height / dpr;
+    const colors = getThemeColors();
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+    ctx.fillStyle = colors.mapBg;
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+    const nodes = getMasteryNodes();
+    if (!nodes.length) {
+      drawEmptyCanvas(ctx, cssWidth, cssHeight, colors);
+      return;
+    }
+
+    const centerX = cssWidth / 2;
+    const centerY = cssHeight / 2 + 10;
+    const radius = Math.max(58, Math.min(cssWidth, cssHeight) * 0.31);
+
+    ctx.strokeStyle = colors.line;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    nodes.forEach((node, index) => {
+      const angle = (Math.PI * 2 * index) / nodes.length - Math.PI / 2;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+      const color =
+        node.status === "correct"
+          ? colors.correct
+          : node.status === "current"
+            ? colors.current
+            : node.status === "done"
+              ? colors.done
+              : colors.pending;
+
+      ctx.strokeStyle = colors.mapLink;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, 13, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    ctx.fillStyle = colors.mapCenter;
+    ctx.strokeStyle = colors.line;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, 42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = colors.accent;
+    ctx.font = "900 13px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Score", centerX, centerY - 7);
+    ctx.fillStyle = colors.ink;
+    ctx.font = "800 15px Inter, system-ui, sans-serif";
+    const currentResult = getCurrentRoundResult();
+    ctx.fillText(currentResult ? `${currentResult.correct}/${currentResult.total}` : `0/${nodes.length}`, centerX, centerY + 12);
+  }
+
+  function getMasteryNodes() {
+    if (state.questions.length) {
+      const currentResult = getCurrentRoundResult();
+      return state.questions.map((question, index) => {
+        const resultItem = currentResult?.items?.find((item) => item.id === question.id);
+        return {
+          status: resultItem
+            ? resultItem.isCorrect
+              ? "correct"
+              : "wrong"
+            : index === state.currentQuestionIndex
+              ? "current"
+              : state.answers[question.id]
+                ? "done"
+                : "pending",
+        };
+      });
+    }
+
+    return (state.session?.areas || []).slice(0, state.roundSize).map(() => ({
+      status: "pending",
+    }));
+  }
+
+  function getCurrentRoundResult() {
+    const latest = state.history[state.history.length - 1];
+    if (!latest?.items?.length || !state.questions.length) return null;
+
+    const currentIds = new Set(state.questions.map((question) => question.id));
+    return latest.items.every((item) => currentIds.has(item.id)) ? latest : null;
+  }
+
+  function drawEmptyCanvas(ctx, width, height, colors) {
+    ctx.strokeStyle = colors.line;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(width / 2, height / 2, Math.min(width, height) * 0.22, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = colors.muted;
+    ctx.font = "800 14px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("No map yet", width / 2, height / 2);
+  }
+
+  function getThemeColors() {
+    return {
+      mapBg: cssVar("--map-bg"),
+      mapCenter: cssVar("--map-center"),
+      mapLink: cssVar("--map-link"),
+      line: cssVar("--line"),
+      accent: cssVar("--accent"),
+      ink: cssVar("--ink"),
+      muted: cssVar("--muted"),
+      correct: cssVar("--map-correct"),
+      current: cssVar("--map-current"),
+      done: cssVar("--map-done"),
+      pending: cssVar("--map-pending"),
+    };
+  }
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function updateMastery(result) {
+    Object.values(result.perArea).forEach((area) => {
+      if (!state.mastery[area.area]) {
+        state.mastery[area.area] = { asked: 0, correct: 0, wrong: 0 };
+      }
+      state.mastery[area.area].asked += area.asked;
+      state.mastery[area.area].correct += area.correct;
+      state.mastery[area.area].wrong += area.wrong;
+      if (area.wrong === 0) {
+        state.mastery[area.area].wrong = 0;
+      }
+    });
+  }
+
+  function resetQuiz(options = {}) {
+    state.session = null;
+    state.questions = [];
+    state.answers = {};
+    state.currentQuestionIndex = 0;
+    clearTimeout(state.advanceTimer);
+    clearTimeout(state.transitionTimer);
+    state.isTransitioning = false;
+    state.roundIndex = 1;
+    state.history = [];
+    state.mastery = {};
+    state.weakAreas = [];
+    state.previousQuestionIds = [];
+    state.aiMode = false;
+    state.aiModelUsed = "";
+    state.sourceText = "";
+    state.roundSize = 5;
+
+    if (options.clearSource) {
+      els.sourceText.value = "";
+    }
+
+    els.roundLabel.textContent = "Round 1";
+    els.emptyState.classList.remove("hidden");
+    els.quizForm.classList.add("hidden");
+    els.quizActions.classList.add("hidden");
+    els.report.classList.add("hidden");
+    els.feedbackList.innerHTML = "";
+    els.reportScore.textContent = "";
+    els.progressText.textContent = "0 of 0 answered";
+    els.progressBar.style.width = "0%";
+    els.submitButton.disabled = true;
+    els.submitButton.classList.remove("hidden");
+    els.nextQuestionButton.classList.remove("hidden");
+    els.nextRoundButton.classList.add("hidden");
+    clearWeakAreaSummary();
+    els.editButton.classList.add("hidden");
+    els.quizForm.innerHTML = "";
+    hideLoading();
+    if (options.clearStatusMessage) {
+      clearStatus();
+    }
+    renderInsights();
+  }
+
+  async function initializeAccessGate() {
+    try {
+      const config = await window.AiQuizService.getConfig();
+      state.accessRequired = Boolean(config.accessRequired);
+      if (state.accessRequired && !window.AiQuizService.getAccessCode()) {
+        showAccessGate();
+      }
+    } catch (error) {
+      state.accessRequired = false;
+    }
+  }
+
+  async function verifyAccessCode() {
+    const accessCode = els.accessCodeInput.value.trim();
+    if (!accessCode) {
+      els.accessError.textContent = "Enter the access code.";
+      return;
+    }
+
+    els.accessSubmitButton.disabled = true;
+    els.accessSubmitButton.textContent = "Checking";
+
+    try {
+      await window.AiQuizService.verifyAccessCode(accessCode);
+      hideAccessGate();
+      clearStatus();
+    } catch (error) {
+      els.accessError.textContent = error.message || "Access code is incorrect.";
+      els.accessCodeInput.select();
+    } finally {
+      els.accessSubmitButton.disabled = false;
+      els.accessSubmitButton.textContent = "Continue";
+    }
+  }
+
+  function showAccessGate(message) {
+    if (!els.accessGate) return;
+    els.accessError.textContent = message || "";
+    els.accessGate.classList.remove("hidden");
+    document.body.classList.add("access-locked");
+    setTimeout(() => els.accessCodeInput.focus(), 0);
+  }
+
+  function hideAccessGate() {
+    if (!els.accessGate) return;
+    els.accessError.textContent = "";
+    els.accessGate.classList.add("hidden");
+    document.body.classList.remove("access-locked");
+  }
+
+  function showStatus(message, tone) {
+    els.statusMessage.classList.toggle("success", tone === "success");
+    els.statusMessage.textContent = message;
+  }
+
+  function getSuccessMessage() {
+    if (state.aiMode) {
+      return `Built ${state.questions.length} AI questions with ${formatModelName(state.aiModelUsed || "Gemini")}.`;
+    }
+
+    const count = state.session?.facts?.length || 0;
+    return `Built ${state.questions.length} questions from ${count} study point${count === 1 ? "" : "s"}.`;
+  }
+
+  function getQuestionCountForText(text) {
+    const words = countWords(text);
+    if (words < 500) return 3;
+    if (words <= 1000) return 4;
+    if (words <= 2000) return 5;
+    if (words <= 5000) return 7;
+    return 10;
+  }
+
+  function countWords(text) {
+    return (String(text || "").match(/[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*/g) || []).length;
+  }
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function formatModelName(modelName) {
+    return String(modelName || "Gemini")
+      .replace(/^gemini-/i, "Gemini ")
+      .replace(/-/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  function clearStatus() {
+    els.statusMessage.classList.remove("success");
+    els.statusMessage.textContent = "";
+  }
+
+  function setLoading(percent, text) {
+    const safePercent = Math.max(0, Math.min(100, percent));
+    els.generationLoader.classList.remove("hidden");
+    els.loadingText.textContent = text;
+    els.loadingPercent.textContent = `${safePercent}%`;
+    els.loadingBar.style.width = `${safePercent}%`;
+    els.generationLoader.querySelector(".loader-track").setAttribute("aria-valuenow", String(safePercent));
+  }
+
+  function hideLoading() {
+    els.generationLoader.classList.add("hidden");
+    els.loadingText.textContent = "Preparing quiz";
+    els.loadingPercent.textContent = "0%";
+    els.loadingBar.style.width = "0%";
+    els.generationLoader.querySelector(".loader-track").setAttribute("aria-valuenow", "0");
+  }
+
+  function pause(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  initializeAccessGate();
+  renderMasteryCanvas();
+})();
+
+</script>
+  </body>
+</html>
