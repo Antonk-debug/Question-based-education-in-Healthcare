@@ -204,8 +204,9 @@ h1 {
 
 .app-subtitle {
   max-width: 820px;
-  color: var(--muted);
+  color: var(--accent);
   font-size: clamp(1rem, 1.4vw, 1.22rem);
+  font-style: italic;
   font-weight: 750;
   line-height: 1.35;
 }
