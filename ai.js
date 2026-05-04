@@ -29,7 +29,7 @@
         body: JSON.stringify(settings),
       });
     } catch (error) {
-      throw new Error("Could not reach the quiz backend. If you are running it locally, start it with Start Adaptive Quiz Studio.bat and keep its window open.");
+      throw new Error("Could not reach the quiz backend. If you are running it locally, start the local backend shortcut and keep its window open.");
     }
 
     const payload = await response.json().catch(() => ({}));
