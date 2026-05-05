@@ -17,15 +17,10 @@ PORT = int(os.environ.get("PORT") or ("10000" if os.environ.get("RENDER") else "
 
 QBL_QUESTION_COUNT = 3
 QBL_COURSE_DESCRIPTION = (
-    "A short, specialized continuing education course for registered dietitians in Sweden. "
-    "The course focuses on Personalised Nutrition Care, updating clinical skills to integrate "
-    "nutrigenomics, microbiome analysis, and individualized metabolic profiling into standard "
-    "Swedish dietary guidelines, including NNR 2023, to create highly tailored patient interventions."
+    "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on \"Personalised Nutrition Care,\" updating clinical skills to integrate nutrigenomics, microbiome analysis, and individualized metabolic profiling alongside Nordic dietary guidelines (e.g., NNR 2023) to create highly tailored patient interventions."
 )
 QBL_SKILL = (
-    "Analyzing patient continuous glucose monitor, CGM, data alongside subjective lifestyle logs "
-    "to identify highly individualized glycemic triggers that do not align with standard "
-    "population-level carbohydrate guidelines."
+    "Analyzing patient continuous glucose monitor (CGM) data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with population-level carbohydrate guidelines, interpreted within the patient\u2019s broader metabolic health picture and used to inform, not override, tailored dietary prescriptions."
 )
 
 
