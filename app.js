@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  const QBL_QUESTION_COUNT = 3;
+
   const els = {
     accessGate: document.getElementById("accessGate"),
     accessForm: document.getElementById("accessForm"),
@@ -19,6 +21,8 @@
     loadingBar: document.getElementById("loadingBar"),
     statusMessage: document.getElementById("statusMessage"),
     emptyState: document.getElementById("emptyState"),
+    knowledgeBank: document.getElementById("knowledgeBank"),
+    knowledgeBankText: document.getElementById("knowledgeBankText"),
     quizForm: document.getElementById("quizForm"),
     quizActions: document.getElementById("quizActions"),
     prevQuestionButton: document.getElementById("prevQuestionButton"),
@@ -53,11 +57,16 @@
     aiMode: false,
     aiModelUsed: "",
     sourceText: "",
-    roundSize: 5,
+    knowledgeBank: "",
+    course: "",
+    learningGoals: [],
+    skills: [],
+    roundSize: QBL_QUESTION_COUNT,
     accessRequired: false,
   };
 
   initTheme();
+  loadDefaultSourceText();
 
   els.accessForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -115,10 +124,10 @@
 
   async function generateQuiz() {
     const text = els.sourceText.value.trim();
-    const roundSize = getQuestionCountForText(text);
+    const roundSize = QBL_QUESTION_COUNT;
 
     clearStatus();
-    setLoading(8, "Reading your text");
+    setLoading(8, "Reading your context");
 
     if (text.length < 40) {
       showStatus("Paste a little more educational text first. Two or three clear facts is enough.");
@@ -131,7 +140,7 @@
 
     try {
       await pause(120);
-      setLoading(34, "Finding teachable points");
+      setLoading(34, "Building the QBL knowledge bank");
       await pause(120);
 
       const session = window.QuizEngine.createSession(text, { roundSize });
@@ -154,7 +163,7 @@
       state.roundSize = roundSize;
       clearWeakAreaSummary();
 
-      setLoading(58, "Asking Gemini for better questions");
+      setLoading(58, "Asking Gemini for QBL questions");
       await startAiRound([]);
 
       const started = state.questions.length > 0;
@@ -189,13 +198,15 @@
       }
     } finally {
       els.generateButton.disabled = false;
-      els.generateButton.textContent = "Generate quiz";
+      els.generateButton.textContent = "Generate QBL";
     }
   }
 
   els.quizForm.addEventListener("change", (event) => {
     if (event.target.matches("input[type='radio']")) {
       state.answers[event.target.name] = event.target.value;
+      // Answer-specific QBL feedback is displayed by re-rendering the current question after the learner chooses an option.
+      if (event.target.name === state.questions[state.currentQuestionIndex]?.id) renderQuestions();
       updateProgress();
       renderInsights();
     }
@@ -280,6 +291,10 @@
 
     state.answers = {};
     state.questions = aiRound.questions;
+    state.knowledgeBank = aiRound.knowledgeBank || "";
+    state.course = aiRound.course || "";
+    state.learningGoals = aiRound.learningGoals || [];
+    state.skills = aiRound.skills || [];
     state.currentQuestionIndex = 0;
     state.aiModelUsed = aiRound.modelUsed || "Gemini";
     syncAiAreas(aiRound.questions);
@@ -311,6 +326,7 @@
     els.report.classList.add("hidden");
     els.quizForm.classList.remove("hidden");
     els.quizActions.classList.remove("hidden");
+    renderKnowledgeBank();
     renderQuestions();
     renderInsights();
     updateProgress();
@@ -325,7 +341,7 @@
       areaMap.set(question.area, current);
     });
 
-    state.session = state.session || { facts: [], areas: [], hash: Date.now(), config: { roundSize: 5 } };
+    state.session = state.session || { facts: [], areas: [], hash: Date.now(), config: { roundSize: QBL_QUESTION_COUNT } };
     const existing = state.session.areas || [];
     const aiAreas = Array.from(areaMap.values());
     const merged = new Map(existing.map((area) => [area.name, area]));
@@ -342,28 +358,34 @@
     state.currentQuestionIndex = clamp(state.currentQuestionIndex, 0, state.questions.length - 1);
     const question = state.questions[state.currentQuestionIndex];
     const selectedAnswer = state.answers[question.id];
+    const selectedOption = question.options.find((option) => option.id === selectedAnswer);
     const options = question.options
       .map((option, optionIndex) => {
-        const letter = String.fromCharCode(65 + optionIndex);
+        const letter = option.id || String.fromCharCode(65 + optionIndex);
         const checked = selectedAnswer === option.id ? "checked" : "";
         return `
           <label class="option-row">
             <input type="radio" name="${escapeHtml(question.id)}" value="${escapeHtml(option.id)}" ${checked} />
-            <span class="option-letter">${letter}</span>
+            <span class="option-letter">${escapeHtml(letter)}</span>
             <span>${escapeHtml(option.text)}</span>
           </label>
         `;
       })
       .join("");
+    // Answer-specific feedback is displayed here directly under the selected option set.
+    const feedback = selectedOption?.feedback
+      ? `<div class="option-feedback ${selectedOption.id === question.answerId ? "correct" : "wrong"}" role="status">${escapeHtml(selectedOption.feedback)}</div>`
+      : "";
 
     els.quizForm.innerHTML = `
       <fieldset class="question-card">
         <div class="question-meta">
           <span>Question ${state.currentQuestionIndex + 1} of ${state.questions.length}</span>
-          <span class="area-chip">${escapeHtml(question.area)}</span>
+          <span class="area-chip">${escapeHtml(question.difficulty || question.area)}</span>
         </div>
         <legend>${escapeHtml(question.prompt)}</legend>
         <div class="option-grid">${options}</div>
+        ${feedback}
       </fieldset>
     `;
 
@@ -371,6 +393,13 @@
     if (card && direction) {
       card.classList.add(direction === "backward" ? "question-card-enter-backward" : "question-card-enter-forward");
     }
+  }
+
+  function renderKnowledgeBank() {
+    if (!els.knowledgeBank || !els.knowledgeBankText) return;
+    const knowledgeBank = state.knowledgeBank.trim();
+    els.knowledgeBank.classList.toggle("hidden", !knowledgeBank);
+    els.knowledgeBankText.textContent = knowledgeBank;
   }
 
   function updateProgress() {
@@ -415,7 +444,7 @@
 
   function renderReport(result) {
     els.report.classList.remove("hidden");
-    els.reportScore.textContent = `${result.correct}/${result.total}`;
+    els.reportScore.textContent = state.aiMode ? "QBL round complete" : `${result.correct}/${result.total}`;
     els.nextRoundButton.classList.toggle("hidden", result.mastered);
     renderWeakAreaSummary(result);
 
@@ -429,6 +458,7 @@
               <span>Question ${index + 1}</span>
               <span>${label}</span>
             </div>
+            <p>${escapeHtml(item.feedback || item.explanation || "")}</p>
           </article>
         `;
       })
@@ -692,7 +722,11 @@
     state.aiMode = false;
     state.aiModelUsed = "";
     state.sourceText = "";
-    state.roundSize = 5;
+    state.knowledgeBank = "";
+    state.course = "";
+    state.learningGoals = [];
+    state.skills = [];
+    state.roundSize = QBL_QUESTION_COUNT;
 
     if (options.clearSource) {
       els.sourceText.value = "";
@@ -704,6 +738,8 @@
     els.quizActions.classList.add("hidden");
     els.report.classList.add("hidden");
     els.feedbackList.innerHTML = "";
+    if (els.knowledgeBank) els.knowledgeBank.classList.add("hidden");
+    if (els.knowledgeBankText) els.knowledgeBankText.textContent = "";
     els.reportScore.textContent = "";
     els.progressText.textContent = "0 of 0 answered";
     els.progressBar.style.width = "0%";
@@ -778,7 +814,7 @@
 
   function getSuccessMessage() {
     if (state.aiMode) {
-      return `Built ${state.questions.length} AI questions with ${formatModelName(state.aiModelUsed || "Gemini")}.`;
+      return `Built a QBL knowledge bank and ${state.questions.length} questions with ${formatModelName(state.aiModelUsed || "Gemini")}.`;
     }
 
     const count = state.session?.facts?.length || 0;
@@ -786,12 +822,14 @@
   }
 
   function getQuestionCountForText(text) {
-    const words = countWords(text);
-    if (words < 500) return 3;
-    if (words <= 1000) return 4;
-    if (words <= 2000) return 5;
-    if (words <= 5000) return 7;
-    return 10;
+    return QBL_QUESTION_COUNT;
+  }
+
+  function loadDefaultSourceText() {
+    const defaultText = window.AiQuizService?.getDefaultQblSourceText?.() || "";
+    if (defaultText && !els.sourceText.value.trim()) {
+      els.sourceText.value = defaultText;
+    }
   }
 
   function countWords(text) {
@@ -825,7 +863,7 @@
 
   function hideLoading() {
     els.generationLoader.classList.add("hidden");
-    els.loadingText.textContent = "Preparing quiz";
+    els.loadingText.textContent = "Preparing QBL";
     els.loadingPercent.textContent = "0%";
     els.loadingBar.style.width = "0%";
     els.generationLoader.querySelector(".loader-track").setAttribute("aria-valuenow", "0");

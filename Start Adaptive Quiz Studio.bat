@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
-title Adaptive Quiz Studio Backend
-echo Starting Adaptive Quiz Studio...
+title Question Based Learning Backend
+echo Starting Question Based Learning...
 echo.
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":4173" ^| findstr "LISTENING"') do (
   echo Closing old backend on port 4173...
@@ -27,11 +27,11 @@ if %errorlevel%==0 (
   goto stopped
 )
 
-echo Could not find Python or Node on this computer.
+echo Could not find Python or Node.js on this computer.
 echo Install Python from https://www.python.org/downloads/ and try again.
 
 :stopped
 echo.
-echo Adaptive Quiz Studio backend stopped.
+echo Question Based Learning backend stopped.
 echo If the browser says 127.0.0.1 refused to connect, this window shows why.
 pause

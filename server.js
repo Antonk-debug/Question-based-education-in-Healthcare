@@ -93,7 +93,7 @@ async function handleGenerateQuiz(req, res) {
     "",
     AiQuizService._private.buildUserPrompt({
       text,
-      roundSize: Number(body.roundSize || 5),
+      roundSize: Number(body.roundSize || 3),
       weakAreas: Array.isArray(body.weakAreas) ? body.weakAreas : [],
       previousMistakes: Array.isArray(body.previousMistakes) ? body.previousMistakes : [],
       roundIndex: Number(body.roundIndex || 1),
@@ -127,18 +127,14 @@ async function handleGenerateQuiz(req, res) {
   }
 
   try {
+    // The AI JSON response is parsed here, then ai.js validates the QBL shape before the response reaches the browser.
     const parsed = AiQuizService._private.parseJsonFromText(outputText);
-    let normalized;
-    try {
-      normalized = AiQuizService._private.normalizeAiRound(parsed, Number(body.roundIndex || 1));
-    } catch (error) {
-      normalized = AiQuizService._private.normalizeAiRound(repairQuizPayload(parsed, text, Number(body.roundSize || 5)), Number(body.roundIndex || 1));
-    }
-    normalized.questionCount = Number(body.roundSize || normalized.questions.length || 5);
+    const normalized = AiQuizService._private.normalizeAiRound(parsed, Number(body.roundIndex || 1));
+    normalized.questionCount = normalized.questions.length;
     normalized.modelUsed = geminiResult.modelUsed;
     sendJson(res, 200, normalized);
   } catch (error) {
-    sendJson(res, 502, { error: `Gemini returned invalid quiz JSON: ${error.message}` });
+    sendJson(res, 502, { error: `Gemini returned invalid QBL JSON: ${error.message}` });
   }
 }
 
@@ -231,130 +227,6 @@ function getConfiguredModels(primaryModel) {
     return primaryModel === defaultModel ? defaultModels : `${primaryModel},gemini-2.5-flash,gemini-2.5-flash-lite`;
   }
   return configuredModels;
-}
-
-function repairQuizPayload(payload, sourceText, expectedCount) {
-  if (!payload || !Array.isArray(payload.questions)) {
-    throw new Error("The AI response had the wrong quiz shape");
-  }
-
-  const sourceTerms = extractSourceTerms(sourceText);
-  const questions = payload.questions.slice(0, expectedCount).map((question, index) => {
-    const rawOptions = Array.isArray(question.options) ? question.options.map(cleanText).filter(Boolean) : [];
-    let correctIndex = Number(question.correctIndex);
-    if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex >= rawOptions.length) correctIndex = 0;
-    const correctOption = rawOptions[correctIndex] || `Correct source idea ${index + 1}`;
-    const options = uniqueByKey([correctOption].concat(rawOptions), normalizeKey);
-    let fillerIndex = 1;
-    while (options.length < 5) {
-      const filler = buildFillerOption(question, sourceTerms, fillerIndex);
-      fillerIndex += 1;
-      if (!options.some((option) => normalizeKey(option) === normalizeKey(filler))) options.push(filler);
-    }
-    return {
-      area: cleanText(question.area) || `Source concept ${index + 1}`,
-      skillTag: cleanText(question.skillTag) || "Comprehension",
-      mapTopic: cleanMapTopic(question.mapTopic || question.skillTag || question.area || `Q${index + 1}`),
-      question: cleanText(question.question) || `Which answer best matches source concept ${index + 1}?`,
-      options: options.slice(0, 5),
-      correctIndex: 0,
-      explanation: cleanText(question.explanation) || "The correct answer follows directly from the source text.",
-      sourceQuote: cleanText(question.sourceQuote) || sourceText.slice(0, 180),
-    };
-  });
-
-  while (questions.length < expectedCount) {
-    questions.push(buildFallbackQuestion(questions.length, sourceText, sourceTerms));
-  }
-
-  if (questions.length !== expectedCount) {
-    throw new Error(`Could not repair the AI response into exactly ${expectedCount} questions`);
-  }
-
-  return {
-    coverageSummary: cleanText(payload.coverageSummary) || "Generated from the source text.",
-    questionCount: expectedCount,
-    questions,
-  };
-}
-
-function buildFallbackQuestion(index, sourceText, sourceTerms) {
-  const term = sourceTerms[index % sourceTerms.length] || `source concept ${index + 1}`;
-  return {
-    area: titleCase(term),
-    skillTag: "Comprehension",
-    mapTopic: cleanMapTopic(term),
-    question: `Which answer is best supported by the source text about ${term}?`,
-    options: [
-      `The source directly supports the key point about ${term}`,
-      `A plausible but unsupported claim about ${term}`,
-      `A reversed relationship involving ${term}`,
-      "A broader statement than the source text supports",
-      "A detail from the source that does not answer this question",
-    ],
-    correctIndex: 0,
-    explanation: "The correct answer is the option most directly supported by the supplied source text.",
-    sourceQuote: sourceText.slice(0, 180),
-  };
-}
-
-function extractSourceTerms(sourceText) {
-  const stopWords = new Set(["about", "after", "because", "before", "between", "could", "during", "every", "from", "have", "into", "more", "most", "other", "that", "their", "there", "these", "they", "this", "those", "through", "where", "which", "while", "with", "would"]);
-  const seen = new Set();
-  return (String(sourceText).match(/[A-Za-z][A-Za-z'-]{3,}/g) || [])
-    .filter((word) => {
-      const key = word.toLowerCase();
-      if (stopWords.has(key) || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 12);
-}
-
-function buildFillerOption(question, sourceTerms, index) {
-  const area = cleanText(question.area) || "the topic";
-  const term = sourceTerms[(index - 1) % sourceTerms.length] || area;
-  const templates = [
-    `A plausible but unsupported claim about ${term}`,
-    `A reversed relationship involving ${area}`,
-    "A broader statement than the source text supports",
-    "A detail from the source that does not answer this question",
-    "A partly true statement that misses the key condition",
-  ];
-  return templates[(index - 1) % templates.length];
-}
-
-function uniqueByKey(items, keyFn) {
-  const seen = new Set();
-  return items.filter((item) => {
-    const key = keyFn(item);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function cleanText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function cleanMapTopic(value) {
-  const words = cleanText(value).split(/\s+/).filter(Boolean);
-  return words.slice(0, 3).join(" ") || "Topic";
-}
-
-function normalizeKey(text) {
-  return String(text || "")
-    .normalize("NFKC")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
-
-function titleCase(text) {
-  return String(text || "")
-    .toLowerCase()
-    .replace(/\b[a-z]/g, (char) => char.toUpperCase());
 }
 
 function serveStatic(pathname, res, headOnly) {

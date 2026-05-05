@@ -208,8 +208,11 @@
         chosen: chosen ? chosen.text : "",
         correct: correctOption ? correctOption.text : "",
         isCorrect,
+        feedback: chosen?.feedback || question.explanation || "",
         explanation: question.explanation,
         source: question.source,
+        difficulty: question.difficulty,
+        targetedMisconception: question.targetedMisconception,
       };
     });
 

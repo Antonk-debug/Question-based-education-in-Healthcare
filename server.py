@@ -1,8 +1,8 @@
+import hashlib
 import json
 import mimetypes
 import os
 import pathlib
-import random
 import re
 import unicodedata
 import urllib.error
@@ -14,6 +14,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ROOT = pathlib.Path(__file__).resolve().parent
 IS_HOSTED_RUNTIME = bool(os.environ.get("PORT") or os.environ.get("RENDER"))
 PORT = int(os.environ.get("PORT") or ("10000" if os.environ.get("RENDER") else "4173"))
+
+QBL_QUESTION_COUNT = 3
+QBL_COURSE_DESCRIPTION = (
+    "A short, specialized continuing education course for registered dietitians in Sweden. "
+    "The course focuses on Personalised Nutrition Care, updating clinical skills to integrate "
+    "nutrigenomics, microbiome analysis, and individualized metabolic profiling into standard "
+    "Swedish dietary guidelines, including NNR 2023, to create highly tailored patient interventions."
+)
+QBL_SKILL = (
+    "Analyzing patient continuous glucose monitor, CGM, data alongside subjective lifestyle logs "
+    "to identify highly individualized glycemic triggers that do not align with standard "
+    "population-level carbohydrate guidelines."
+)
 
 
 def load_env_file():
@@ -42,33 +55,30 @@ GEMINI_MODEL = DEFAULT_GEMINI_MODEL if CONFIGURED_GEMINI_MODEL in {"", "gemini-2
 CONFIGURED_GEMINI_MODELS = os.environ.get("GEMINI_MODELS", "").strip()
 if CONFIGURED_GEMINI_MODELS in {"", "gemini-2.5-flash,gemini-2.5-flash-lite"}:
     CONFIGURED_GEMINI_MODELS = DEFAULT_GEMINI_MODELS if GEMINI_MODEL == DEFAULT_GEMINI_MODEL else f"{GEMINI_MODEL},gemini-2.5-flash,gemini-2.5-flash-lite"
-GEMINI_MODELS = [
-    model.strip()
-    for model in CONFIGURED_GEMINI_MODELS.split(",")
-    if model.strip()
-]
+GEMINI_MODELS = [model.strip() for model in CONFIGURED_GEMINI_MODELS.split(",") if model.strip()]
 
 
+# QBL system prompt is defined here for local Python mode. It mirrors the browser/Node prompt contract.
 SYSTEM_PROMPT = " ".join(
     [
-        "You are an expert teacher and assessment designer.",
-        "Generate exactly the requested number of multiple-choice questions from the supplied educational text.",
-        "Detect the dominant language of the supplied source text.",
-        "Write every learner-facing string in the same language as the source text, including coverageSummary, area, skillTag, question, options, explanation, sourceQuote, and mapTopic.",
-        "Keep JSON property names in English exactly as specified, but do not default the quiz content to English unless the source text is English.",
-        "If the source text mixes languages, use the dominant language while preserving names, technical terms, and quoted phrases as they appear in the source.",
-        "Each question must have exactly five answer options.",
-        "correctIndex must be a zero-based number from 0 to 4.",
-        "Each question must have exactly one correct option.",
-        "The correct answer must not be identical to the question.",
-        "All four incorrect options must be clearly wrong, incomplete, or unsupported by the source text.",
-        "Do not include any distractor that could reasonably be accepted as another correct answer.",
-        "Questions should be tricky but fair: distractors should be plausible misconceptions based on the text, not silly or obviously unrelated.",
-        "Use only the supplied source text. Do not add outside facts.",
-        "Avoid all-of-the-above, none-of-the-above, joke answers, and answer options that are duplicated or nearly duplicated.",
-        "For adaptive rounds, focus most questions on the weak areas and mistakes provided.",
-        "Include the requested number as questionCount in the JSON response.",
-        'Return only valid JSON matching this shape: {"coverageSummary":"string","questionCount":5,"questions":[{"area":"string","skillTag":"string","question":"string","options":["string","string","string","string","string"],"correctIndex":0}]}',
+        "You are an expert Question-Based Learning designer for continuing education in clinical dietetics.",
+        "Question-Based Learning is for learning through answering questions, not for evaluation. If the learner already knows all answers from the start, there is nothing to learn from the course.",
+        "Generate QBL-style learning content for one skill at a time.",
+        "Use the supplied course description, selected skill, and source text as the complete educational context.",
+        "Create a short knowledge bank first, then exactly three multiple-choice QBL questions of varying difficulty: easy, medium, and hard.",
+        "Questions must be appropriate for qualified practising dietitians and must encourage understanding, application, or analysis.",
+        "Do not create simple lookup, recall, or definition questions.",
+        "Each question must be easy to understand, unambiguous, and focused on one common misconception.",
+        "Each question must have exactly four answer options with ids A, B, C, and D.",
+        "Every option must be short, clear, plausible, and contextually appropriate.",
+        "Each incorrect option must be a realistic distractor tied directly to the targeted misconception.",
+        "Every option must include unique tailored feedback.",
+        "Feedback for the correct option must begin with exactly 'Correct.'.",
+        "Feedback for incorrect options must begin with exactly 'Incorrect.'.",
+        "Incorrect feedback must be short, constructive, and guide the learner without revealing, naming, quoting, or describing the correct answer.",
+        "Never write 'The correct answer is' or similar wording in incorrect feedback.",
+        "Return only valid JSON. Do not wrap it in markdown.",
+        'Return this exact JSON shape: {"course":"string","learningGoals":["string"],"skills":["string"],"knowledgeBank":"string","questionCount":3,"questions":[{"difficulty":"easy","targetedMisconception":"string","question":"string","options":[{"id":"A","text":"string","isCorrect":true,"feedback":"Correct. string"},{"id":"B","text":"string","isCorrect":false,"feedback":"Incorrect. string"}]}]}.',
     ]
 )
 
@@ -84,20 +94,14 @@ class QuizHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         request_path = urllib.parse.urlparse(self.path).path
-        if request_path == "/api/verify-access":
-            try:
-                self.handle_verify_access()
-            except Exception as error:
-                print(f"Server error: {error}")
-                self.send_json(500, {"error": "Unexpected server error"})
-            return
-
-        if request_path != "/api/generate-quiz":
-            self.send_json(404, {"error": "Not found"})
-            return
-
         try:
-            self.handle_generate_quiz()
+            if request_path == "/api/verify-access":
+                self.handle_verify_access()
+                return
+            if request_path == "/api/generate-quiz":
+                self.handle_generate_quiz()
+                return
+            self.send_json(404, {"error": "Not found"})
         except Exception as error:
             print(f"Server error: {error}")
             self.send_json(500, {"error": "Unexpected server error"})
@@ -153,20 +157,11 @@ class QuizHandler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": "Paste a little more educational text first"})
             return
 
-        prompt = "\n\n".join(
-            [
-                SYSTEM_PROMPT,
-                build_user_prompt(body),
-            ]
-        )
-
+        prompt = "\n\n".join([SYSTEM_PROMPT, build_user_prompt(body)])
         request_body = json.dumps(
             {
                 "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.35,
-                    "responseMimeType": "application/json",
-                },
+                "generationConfig": {"temperature": 0.35, "responseMimeType": "application/json"},
             }
         ).encode("utf-8")
 
@@ -178,23 +173,17 @@ class QuizHandler(BaseHTTPRequestHandler):
 
         output_text = extract_gemini_text(payload)
         if not output_text:
-            self.send_json(502, {"error": "Gemini did not return quiz text"})
+            self.send_json(502, {"error": "Gemini did not return QBL text"})
             return
 
         try:
+            # The AI JSON response is parsed here, then validated into the app-ready QBL shape.
             parsed = parse_json_from_text(output_text)
-            normalized = normalize_ai_round(parsed, int(body.get("roundSize", 5) or 5), int(body.get("roundIndex", 1) or 1))
+            normalized = normalize_qbl_round(parsed, int(body.get("roundIndex", 1) or 1))
+            normalized["modelUsed"] = model_used
+            self.send_json(200, normalized)
         except Exception as error:
-            print(f"Repairing Gemini quiz response: {error}")
-            try:
-                parsed = repair_quiz_payload(parsed if "parsed" in locals() else {}, text, int(body.get("roundSize", 5) or 5))
-                normalized = normalize_ai_round(parsed, int(body.get("roundSize", 5) or 5), int(body.get("roundIndex", 1) or 1))
-            except Exception as repair_error:
-                self.send_json(502, {"error": f"Gemini returned invalid quiz JSON: {repair_error}"})
-                return
-
-        normalized["modelUsed"] = model_used
-        self.send_json(200, normalized)
+            self.send_json(502, {"error": f"Gemini returned invalid QBL JSON: {error}"})
 
     def read_json_body(self):
         length = int(self.headers.get("Content-Length", "0") or 0)
@@ -237,21 +226,22 @@ class GeminiRequestError(Exception):
 def call_gemini_with_fallbacks(api_key, request_body):
     tried = []
     last_error = None
+    models = unique_model_list(GEMINI_MODELS)
 
-    for index, model_name in enumerate(unique_model_list(GEMINI_MODELS)):
+    for index, model_name in enumerate(models):
         tried.append(model_name)
         try:
             return call_gemini_model(api_key, model_name, request_body), model_name
         except GeminiRequestError as error:
             last_error = error
-            if index < len(unique_model_list(GEMINI_MODELS)) - 1 and is_retryable_gemini_error(error):
+            if index < len(models) - 1 and is_retryable_gemini_error(error):
                 print(f"Gemini model {model_name} failed temporarily: {error.message}. Trying fallback model.")
                 continue
             break
 
     tried_text = ", ".join(tried)
     if last_error:
-      raise GeminiRequestError(last_error.status_code, f"{last_error.message} Tried models: {tried_text}.")
+        raise GeminiRequestError(last_error.status_code, f"{last_error.message} Tried models: {tried_text}.")
     raise GeminiRequestError(502, f"No Gemini models were available. Tried models: {tried_text}.")
 
 
@@ -262,12 +252,7 @@ def call_gemini_model(api_key, model_name, request_body):
         + ":generateContent?key="
         + urllib.parse.quote(api_key, safe="")
     )
-    request = urllib.request.Request(
-        url,
-        data=request_body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
+    request = urllib.request.Request(url, data=request_body, headers={"Content-Type": "application/json"}, method="POST")
 
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
@@ -292,12 +277,7 @@ def unique_model_list(models):
 
 def is_retryable_gemini_error(error):
     message = error.message.lower()
-    return (
-        error.status_code in {429, 500, 502, 503, 504}
-        or "high demand" in message
-        or "temporarily" in message
-        or "unavailable" in message
-    )
+    return error.status_code in {429, 500, 502, 503, 504} or "high demand" in message or "temporarily" in message or "unavailable" in message
 
 
 def build_user_prompt(settings):
@@ -315,15 +295,24 @@ def build_user_prompt(settings):
 
     return "\n\n".join(
         [
+            # Course and selected skill context are inserted into the user prompt here for the QBL generation call.
+            "Course:",
+            "Personalised Nutrition Care",
+            "Course description:",
+            QBL_COURSE_DESCRIPTION,
+            "Learning goal:",
+            "Use patient-specific data to reason beyond population-level dietary assumptions and select more individualized nutrition interventions.",
+            "Selected skill:",
+            QBL_SKILL,
             f"Round: {settings.get('roundIndex', 1)}",
-            f"Number of questions to generate: {settings.get('roundSize', 5)}",
-            f"Weak areas: {', '.join(weak_areas) if weak_areas else 'None yet'}",
-            "Previous mistakes:",
+            f"Number of QBL questions to generate: {QBL_QUESTION_COUNT}",
+            f"Weak areas from earlier answers: {', '.join(weak_areas) if weak_areas else 'None yet'}",
+            "Previous learner mistakes:",
             mistake_text,
-            "Source text:",
+            "Source text or instructor notes:",
             str(settings.get("text", "")),
-            "Output language: use the same dominant language as the source text for all visible quiz content.",
-            "Generate the next quiz round now.",
+            "Output language: English unless the source text is clearly written in another language. Preserve Swedish guideline names and technical terms such as NNR 2023 and CGM.",
+            "Generate the QBL knowledge bank and three questions now.",
         ]
     )
 
@@ -353,196 +342,145 @@ def parse_json_from_text(text):
             raise
 
 
-def normalize_ai_round(payload, expected_count, round_index):
+def normalize_qbl_round(payload, round_index):
     if not isinstance(payload, dict) or not isinstance(payload.get("questions"), list):
-        raise ValueError("The AI response had the wrong quiz shape")
+        raise ValueError("The AI response had the wrong QBL shape")
+    if len(payload["questions"]) != QBL_QUESTION_COUNT:
+        raise ValueError(f"The AI must return exactly {QBL_QUESTION_COUNT} QBL questions")
 
-    questions = []
-    for index, question in enumerate(payload["questions"][:expected_count]):
-        raw_options = [clean_text(option) for option in question.get("options", []) if clean_text(option)][:5]
-        correct_index = int(question.get("correctIndex", -1))
-        if len(raw_options) != 5 or correct_index < 0 or correct_index > 4:
-            raise ValueError("A question did not have exactly five valid options")
-
-        correct_text = raw_options[correct_index]
-        options = unique_by_key(raw_options)
-        normalized_correct_index = next(
-            (i for i, option in enumerate(options) if normalize_key(option) == normalize_key(correct_text)),
-            -1,
-        )
-
-        if len(options) != 5 or normalized_correct_index < 0:
-            raise ValueError("The AI returned duplicate options or an invalid answer index")
-
-        if has_near_duplicate_correct_option(options, normalized_correct_index):
-            raise ValueError("The AI returned another option too similar to the correct answer")
-
-        randomized_options = randomize_options(options, normalized_correct_index)
-        prompt = clean_text(question.get("question", ""))
-        question_id = f"ai-{round_index}-{index}-{abs(hash(prompt))}"
-        questions.append(
-            {
-                "id": question_id,
-                "area": clean_text(question.get("area")) or "Source concept",
-                "type": "ai",
-                "prompt": prompt,
-                "options": [
-                    {
-                        "id": "answer" if option["is_correct"] else f"ai-option-{option_index}-{abs(hash(option['text']))}",
-                        "text": option["text"],
-                    }
-                    for option_index, option in enumerate(randomized_options)
-                ],
-                "answerId": "answer",
-                "explanation": clean_text(question.get("explanation")) or "The correct answer follows directly from the source text.",
-                "source": clean_text(question.get("sourceQuote")) or "Source text",
-                "skillTag": clean_text(question.get("skillTag")) or "Comprehension",
-                "mapTopic": clean_map_topic(question.get("mapTopic") or question.get("skillTag") or question.get("area") or f"Q{index + 1}"),
-            }
-        )
-
-    if len(questions) != expected_count:
-        raise ValueError(f"The AI did not return exactly {expected_count} questions")
-
-    return {"coverageSummary": clean_text(payload.get("coverageSummary", "")), "questionCount": expected_count, "questions": questions}
+    questions = [normalize_qbl_question(question, index, round_index) for index, question in enumerate(payload["questions"])]
+    return {
+        "course": clean_course(payload.get("course")),
+        "learningGoals": normalize_string_array(payload.get("learningGoals"), ["Analyze individualized patient data to guide personalised nutrition care."]),
+        "skills": normalize_string_array(payload.get("skills"), [QBL_SKILL]),
+        "knowledgeBank": validate_knowledge_bank(payload.get("knowledgeBank")),
+        "coverageSummary": clean_text(payload.get("coverageSummary") or payload.get("knowledgeBank") or ""),
+        "questionCount": QBL_QUESTION_COUNT,
+        "questions": questions,
+    }
 
 
-def repair_quiz_payload(payload, source_text, expected_count):
-    if not isinstance(payload, dict) or not isinstance(payload.get("questions"), list):
-        raise ValueError("The AI response had the wrong quiz shape")
+def normalize_qbl_question(question, index, round_index):
+    if not isinstance(question, dict):
+        raise ValueError(f"QBL question {index + 1} is missing")
 
-    repaired_questions = []
-    source_terms = extract_source_terms(source_text)
+    prompt = clean_text(question.get("question") or question.get("prompt"))
+    if not prompt:
+        raise ValueError(f"QBL question {index + 1} is missing question text")
+    if is_lookup_style_question(prompt):
+        raise ValueError(f"QBL question {index + 1} looks like a lookup or definition question")
 
-    for index, question in enumerate(payload["questions"]):
-        if len(repaired_questions) >= expected_count:
-            break
+    raw_options = question.get("options") if isinstance(question.get("options"), list) else []
+    raw_options = raw_options[:4]
+    if len(raw_options) < 3:
+        raise ValueError(f"QBL question {index + 1} needs at least three answer options")
 
-        prompt = clean_text(question.get("question", ""))
-        raw_options = [clean_text(option) for option in question.get("options", []) if clean_text(option)]
-        if not prompt or len(raw_options) < 1:
-            continue
+    answer_id = clean_text(question.get("answerId"))
+    options = [normalize_qbl_option(option, option_index, answer_id) for option_index, option in enumerate(raw_options)]
+    if len(unique_by_key([option["text"] for option in options])) != len(options):
+        raise ValueError(f"QBL question {index + 1} has duplicate answer options")
 
-        correct_index = safe_int(question.get("correctIndex"), 0)
-        if correct_index < 0 or correct_index >= len(raw_options):
-            correct_index = 0
+    correct_options = [option for option in options if option["isCorrect"]]
+    if len(correct_options) != 1:
+        raise ValueError(f"QBL question {index + 1} must have exactly one correct answer")
 
-        correct_option = raw_options[correct_index]
-        options = unique_by_key([correct_option] + raw_options)
-        filler_index = 1
-        while len(options) < 5:
-            filler = build_filler_option(question, source_terms, filler_index)
-            filler_index += 1
-            if normalize_key(filler) not in {normalize_key(option) for option in options}:
-                options.append(filler)
+    correct_option = correct_options[0]
+    correct_index = next(i for i, option in enumerate(options) if option["id"] == correct_option["id"])
+    if has_near_duplicate_correct_option([option["text"] for option in options], correct_index):
+        raise ValueError(f"QBL question {index + 1} has an answer option too similar to the correct option")
 
-        repaired_questions.append(
-            {
-                "area": clean_text(question.get("area")) or f"Source concept {index + 1}",
-                "skillTag": clean_text(question.get("skillTag")) or "Comprehension",
-                "mapTopic": clean_map_topic(question.get("mapTopic") or question.get("skillTag") or question.get("area") or f"Q{index + 1}"),
-                "question": prompt,
-                "options": options[:5],
-                "correctIndex": 0,
-                "explanation": clean_text(question.get("explanation")) or "The correct answer follows directly from the source text.",
-                "sourceQuote": clean_text(question.get("sourceQuote")) or source_text[:180],
-            }
-        )
+    for option in options:
+        validate_qbl_feedback(option, correct_option["text"], index)
 
-    while len(repaired_questions) < expected_count:
-        index = len(repaired_questions)
-        repaired_questions.append(build_fallback_question(index, source_text, source_terms))
-
-    if len(repaired_questions) != expected_count:
-        raise ValueError(f"Could not repair the AI response into exactly {expected_count} questions")
+    difficulty = normalize_difficulty(question.get("difficulty"), index)
+    targeted_misconception = clean_text(question.get("targetedMisconception"))
+    if not targeted_misconception:
+        raise ValueError(f"QBL question {index + 1} needs a targeted misconception")
 
     return {
-        "coverageSummary": clean_text(payload.get("coverageSummary")) or "Generated from the source text.",
-        "questionCount": expected_count,
-        "questions": repaired_questions,
+        "id": clean_text(question.get("id")) or f"qbl-{round_index or 1}-{index}-{stable_hash(prompt)}",
+        "area": clean_text(question.get("area")) or "Personalised Nutrition Care",
+        "type": "qbl",
+        "prompt": prompt,
+        "options": options,
+        "answerId": correct_option["id"],
+        "explanation": correct_option["feedback"],
+        "source": "QBL knowledge bank",
+        "skillTag": clean_text(question.get("skillTag")) or QBL_SKILL,
+        "mapTopic": clean_map_topic(question.get("mapTopic") or targeted_misconception or difficulty),
+        "difficulty": difficulty,
+        "targetedMisconception": targeted_misconception,
     }
 
 
-def build_fallback_question(index, source_text, source_terms):
-    term = source_terms[index % len(source_terms)] if source_terms else f"source concept {index + 1}"
+def normalize_qbl_option(option, option_index, answer_id):
+    if not isinstance(option, dict):
+        raise ValueError("Each QBL answer option must be an object with id, text, isCorrect, and feedback")
+    fallback_id = chr(65 + option_index)
+    option_id = clean_text(option.get("id")) or fallback_id
+    is_correct = option.get("isCorrect") if isinstance(option.get("isCorrect"), bool) else bool(answer_id and option_id == answer_id)
     return {
-        "area": term.title(),
-        "skillTag": "Comprehension",
-        "mapTopic": clean_map_topic(term),
-        "question": f"Which answer is best supported by the source text about {term}?",
-        "options": [
-            f"The source directly supports the key point about {term}",
-            f"A plausible but unsupported claim about {term}",
-            f"A reversed relationship involving {term}",
-            "A broader statement than the source text supports",
-            "A detail from the source that does not answer this question",
-        ],
-        "correctIndex": 0,
-        "explanation": "The correct answer is the option most directly supported by the supplied source text.",
-        "sourceQuote": source_text[:180],
+        "id": option_id,
+        "text": clean_text(option.get("text")),
+        "isCorrect": is_correct,
+        "feedback": clean_text(option.get("feedback")),
     }
 
 
-def extract_source_terms(source_text):
-    words = re.findall(r"[A-Za-z][A-Za-z'-]{3,}", source_text)
-    stop_words = {
-        "about",
-        "after",
-        "because",
-        "before",
-        "between",
-        "could",
-        "during",
-        "every",
-        "from",
-        "have",
-        "into",
-        "more",
-        "most",
-        "other",
-        "that",
-        "their",
-        "there",
-        "these",
-        "they",
-        "this",
-        "those",
-        "through",
-        "where",
-        "which",
-        "while",
-        "with",
-        "would",
-    }
-    terms = []
-    seen = set()
-    for word in words:
-        key = word.lower()
-        if key in stop_words or key in seen:
-            continue
-        seen.add(key)
-        terms.append(word)
-    return terms[:12]
+def validate_qbl_feedback(option, correct_text, question_index):
+    if not option["text"]:
+        raise ValueError(f"QBL question {question_index + 1} has an empty answer option")
+    if not option["feedback"]:
+        raise ValueError(f"QBL question {question_index + 1} has an answer option without feedback")
+    if option["isCorrect"]:
+        if not option["feedback"].startswith("Correct."):
+            raise ValueError(f"Correct feedback in QBL question {question_index + 1} must begin with Correct.")
+        return
+    if not option["feedback"].startswith("Incorrect."):
+        raise ValueError(f"Incorrect feedback in QBL question {question_index + 1} must begin with Incorrect.")
+    if reveals_correct_answer(option["feedback"], correct_text):
+        raise ValueError(f"Incorrect feedback in QBL question {question_index + 1} reveals the correct answer")
 
 
-def build_filler_option(question, source_terms, index):
-    area = clean_text(question.get("area")) or "the topic"
-    term = source_terms[(index - 1) % len(source_terms)] if source_terms else area
-    templates = [
-        f"A plausible but unsupported claim about {term}",
-        f"A reversed relationship involving {area}",
-        f"A broader statement than the source text supports",
-        f"A detail from the source that does not answer this question",
-        f"A partly true statement that misses the key condition",
-    ]
-    return templates[(index - 1) % len(templates)]
+def reveals_correct_answer(feedback, correct_text):
+    feedback_key = normalize_key(feedback)
+    correct_key = normalize_key(correct_text)
+    if re.search(r"\b(correct|right) answer\b", feedback_key) or re.search(r"\banswer is\b", feedback_key):
+        return True
+    return len(correct_key) > 12 and correct_key in feedback_key
 
 
-def safe_int(value, fallback):
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return fallback
+def is_lookup_style_question(question_text):
+    return bool(re.match(r"^(define\b|which option best defines|which .*definition|how is .*defined|what does .*mean|what is the definition)\b", clean_text(question_text), flags=re.IGNORECASE))
+
+
+def normalize_difficulty(value, index):
+    difficulty = clean_text(value).lower()
+    if difficulty in {"easy", "medium", "hard"}:
+        return difficulty
+    return ["easy", "medium", "hard"][index] if index < 3 else "medium"
+
+
+def validate_knowledge_bank(value):
+    knowledge_bank = clean_text(value)
+    if not knowledge_bank:
+        raise ValueError("The QBL response needs a knowledgeBank")
+    return knowledge_bank
+
+
+def clean_course(value):
+    if isinstance(value, str):
+        return clean_text(value) or "Personalised Nutrition Care"
+    if isinstance(value, dict):
+        return clean_text(value.get("title") or value.get("name") or value.get("description")) or "Personalised Nutrition Care"
+    return "Personalised Nutrition Care"
+
+
+def normalize_string_array(value, fallback):
+    if not isinstance(value, list):
+        return list(fallback)
+    items = unique_by_key([clean_text(item) for item in value if clean_text(item)])
+    return items or list(fallback)
 
 
 def unique_by_key(items):
@@ -556,24 +494,9 @@ def unique_by_key(items):
     return unique
 
 
-def randomize_options(options, correct_index):
-    randomized = [
-        {
-            "text": clean_text(option),
-            "is_correct": index == correct_index,
-        }
-        for index, option in enumerate(options)
-    ]
-    random.shuffle(randomized)
-    return randomized
-
-
 def has_near_duplicate_correct_option(options, correct_index):
     correct = clean_text(options[correct_index])
-    return any(
-        index != correct_index and are_options_too_similar(correct, option)
-        for index, option in enumerate(options)
-    )
+    return any(index != correct_index and are_options_too_similar(correct, option) for index, option in enumerate(options))
 
 
 def are_options_too_similar(first, second):
@@ -585,12 +508,10 @@ def are_options_too_similar(first, second):
         return True
     if len(first_key) > 25 and len(second_key) > 25 and (first_key in second_key or second_key in first_key):
         return True
-
     first_tokens = meaningful_tokens(first_key)
     second_tokens = meaningful_tokens(second_key)
     if len(first_tokens) < 4 or len(second_tokens) < 4:
         return False
-
     overlap = len(set(first_tokens) & set(second_tokens))
     union = len(set(first_tokens) | set(second_tokens))
     return overlap / min(len(first_tokens), len(second_tokens)) >= 0.86 and overlap / union >= 0.72
@@ -624,6 +545,10 @@ def normalize_key(value):
     return "".join(parts).strip()
 
 
+def stable_hash(value):
+    return hashlib.sha1(str(value).encode("utf-8")).hexdigest()[:10]
+
+
 def extract_error_message(detail, status_code):
     try:
         payload = json.loads(detail)
@@ -634,7 +559,7 @@ def extract_error_message(detail, status_code):
 
 def main():
     display_host = "127.0.0.1" if HOST == "0.0.0.0" else HOST
-    print(f"Adaptive Quiz Studio is running at http://{display_host}:{PORT}/")
+    print(f"Question Based Learning is running at http://{display_host}:{PORT}/")
     print("Keep this window open while using the app.")
     ThreadingHTTPServer((HOST, PORT), QuizHandler).serve_forever()
 

@@ -44,17 +44,17 @@
             id="sourceText"
             spellcheck="true"
             aria-label="Source text"
-            placeholder="Paste a chapter excerpt, notes, article section, or study guide text."
+            placeholder="Paste course notes, patient-data context, or instructor guidance for this QBL skill."
           ></textarea>
 
           <div class="source-actions">
-            <button class="primary-button" id="generateButton" type="button">Generate quiz</button>
+            <button class="primary-button" id="generateButton" type="button">Generate QBL</button>
             <button class="text-button" id="clearButton" type="button">Clear</button>
           </div>
 
           <div class="generation-loader hidden" id="generationLoader" aria-live="polite">
             <div class="loader-copy">
-              <span id="loadingText">Preparing quiz</span>
+              <span id="loadingText">Preparing QBL</span>
               <strong id="loadingPercent">0%</strong>
             </div>
             <div class="loader-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
@@ -72,6 +72,11 @@
             </div>
             <button class="ghost-button hidden" id="editButton" type="button">Edit text</button>
           </div>
+
+          <section class="knowledge-bank hidden" id="knowledgeBank" aria-label="Knowledge bank">
+            <h3>Knowledge bank</h3>
+            <p id="knowledgeBankText"></p>
+          </section>
 
           <div class="empty-state" id="emptyState">
             <div class="empty-visual" aria-hidden="true">
@@ -95,7 +100,7 @@
               <button class="ghost-button" id="prevQuestionButton" type="button">Previous</button>
               <button class="ghost-button" id="nextQuestionButton" type="button">Next</button>
               <button class="primary-button" id="submitButton" type="submit" form="quizForm" disabled>
-                Submit round
+                Complete activity
               </button>
             </div>
           </div>

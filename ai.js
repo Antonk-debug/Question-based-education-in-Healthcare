@@ -8,12 +8,18 @@
   "use strict";
 
   const ACCESS_CODE_KEY = "adaptiveQuizAccessCode";
+  const QBL_QUESTION_COUNT = 3;
+  const QBL_COURSE_DESCRIPTION =
+    "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on Personalised Nutrition Care, updating clinical skills to integrate nutrigenomics, microbiome analysis, and individualized metabolic profiling into standard Swedish dietary guidelines, including NNR 2023, to create highly tailored patient interventions.";
+  const QBL_SKILL =
+    "Analyzing patient continuous glucose monitor, CGM, data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with standard population-level carbohydrate guidelines.";
+  const DEFAULT_QBL_SOURCE_TEXT = `${QBL_COURSE_DESCRIPTION}\n\nSelected skill:\n${QBL_SKILL}`;
 
   async function generateQuiz(options) {
     const settings = Object.assign(
       {
         text: "",
-        roundSize: 5,
+        roundSize: QBL_QUESTION_COUNT,
         weakAreas: [],
         previousMistakes: [],
         roundIndex: 1,
@@ -98,26 +104,27 @@
     return error;
   }
 
+  // QBL system prompt is defined here. It sets the learning philosophy, JSON contract, and validation rules Gemini should follow.
   function buildSystemPrompt() {
     return [
-      "You are an expert teacher and assessment designer.",
-      "Generate exactly the requested number of multiple-choice questions from the supplied educational text.",
-      "Detect the dominant language of the supplied source text.",
-      "Write every learner-facing string in the same language as the source text, including coverageSummary, area, skillTag, question, options, explanation, sourceQuote, and mapTopic.",
-      "Keep JSON property names in English exactly as specified, but do not default the quiz content to English unless the source text is English.",
-      "If the source text mixes languages, use the dominant language while preserving names, technical terms, and quoted phrases as they appear in the source.",
-      "Each question must have exactly five answer options.",
-      "correctIndex must be a zero-based number from 0 to 4.",
-      "Each question must have exactly one correct option.",
-      "The correct answer must not be identical to the question.",
-      "All four incorrect options must be clearly wrong, incomplete, or unsupported by the source text.",
-      "Do not include any distractor that could reasonably be accepted as another correct answer.",
-      "Questions should be tricky but fair: distractors should be plausible misconceptions based on the text, not silly or obviously unrelated.",
-      "Use only the supplied source text. Do not add outside facts.",
-      "Avoid all-of-the-above, none-of-the-above, joke answers, and answer options that are duplicated or nearly duplicated.",
-      "For adaptive rounds, focus most questions on the weak areas and mistakes provided.",
-      "Include the requested number as questionCount in the JSON response.",
-      "Return only valid JSON matching this shape: {\"coverageSummary\":\"string\",\"questionCount\":5,\"questions\":[{\"area\":\"string\",\"skillTag\":\"string\",\"question\":\"string\",\"options\":[\"string\",\"string\",\"string\",\"string\",\"string\"],\"correctIndex\":0}]}",
+      "You are an expert Question-Based Learning designer for continuing education in clinical dietetics.",
+      "Question-Based Learning is for learning through answering questions, not for evaluation. If the learner already knows all answers from the start, there is nothing to learn from the course.",
+      "Generate QBL-style learning content for one skill at a time.",
+      "Use the supplied course description, selected skill, and source text as the complete educational context.",
+      "Create a short knowledge bank first, then exactly three multiple-choice QBL questions of varying difficulty: easy, medium, and hard.",
+      "Questions must be appropriate for qualified practising dietitians and must encourage understanding, application, or analysis.",
+      "Do not create simple lookup, recall, or definition questions.",
+      "Each question must be easy to understand, unambiguous, and focused on one common misconception.",
+      "Each question must have exactly four answer options with ids A, B, C, and D.",
+      "Every option must be short, clear, plausible, and contextually appropriate.",
+      "Each incorrect option must be a realistic distractor tied directly to the targeted misconception.",
+      "Every option must include unique tailored feedback.",
+      "Feedback for the correct option must begin with exactly 'Correct.'.",
+      "Feedback for incorrect options must begin with exactly 'Incorrect.'.",
+      "Incorrect feedback must be short, constructive, and guide the learner without revealing, naming, quoting, or describing the correct answer.",
+      "Never write 'The correct answer is' or similar wording in incorrect feedback.",
+      "Return only valid JSON. Do not wrap it in markdown.",
+      "Return this exact JSON shape: {\"course\":\"string\",\"learningGoals\":[\"string\"],\"skills\":[\"string\"],\"knowledgeBank\":\"string\",\"questionCount\":3,\"questions\":[{\"difficulty\":\"easy\",\"targetedMisconception\":\"string\",\"question\":\"string\",\"options\":[{\"id\":\"A\",\"text\":\"string\",\"isCorrect\":true,\"feedback\":\"Correct. string\"},{\"id\":\"B\",\"text\":\"string\",\"isCorrect\":false,\"feedback\":\"Incorrect. string\"}]}]}.",
     ].join(" ");
   }
 
@@ -131,152 +138,189 @@
       : "No previous mistakes.";
 
     return [
+      // Course and selected skill context are inserted into the user prompt here for the QBL generation call.
+      "Course:",
+      "Personalised Nutrition Care",
+      "Course description:",
+      QBL_COURSE_DESCRIPTION,
+      "Learning goal:",
+      "Use patient-specific data to reason beyond population-level dietary assumptions and select more individualized nutrition interventions.",
+      "Selected skill:",
+      QBL_SKILL,
       `Round: ${settings.roundIndex || 1}`,
-      `Number of questions to generate: ${settings.roundSize || 5}`,
-      `Weak areas: ${weakAreas}`,
-      "Previous mistakes:",
+      `Number of QBL questions to generate: ${QBL_QUESTION_COUNT}`,
+      `Weak areas from earlier answers: ${weakAreas}`,
+      "Previous learner mistakes:",
       mistakes,
-      "Source text:",
-      settings.text,
-      "Output language: use the same dominant language as the source text for all visible quiz content.",
-      "Generate the next quiz round now.",
+      "Source text or instructor notes:",
+      cleanText(settings.text) || DEFAULT_QBL_SOURCE_TEXT,
+      "Output language: English unless the source text is clearly written in another language. Preserve Swedish guideline names and technical terms such as NNR 2023 and CGM.",
+      "Generate the QBL knowledge bank and three questions now.",
     ].join("\n\n");
   }
 
   function normalizeAiRound(payload, roundIndex) {
+    // The parsed AI JSON response is normalized and validated here before the app renders it.
     if (!payload || !Array.isArray(payload.questions)) {
-      throw new Error("The AI response had the wrong quiz shape");
+      throw new Error("The AI response had the wrong QBL shape");
     }
 
-    if (isAppReadyRound(payload)) {
-      return validateAppReadyRound(payload, roundIndex);
+    if (payload.questions.length !== QBL_QUESTION_COUNT) {
+      throw new Error(`The AI must return exactly ${QBL_QUESTION_COUNT} QBL questions`);
     }
 
-    const expectedCount = getExpectedQuestionCount(payload, roundIndex);
-    const questions = payload.questions.slice(0, expectedCount).map((question, index) => {
-      const rawOptions = Array.isArray(question.options) ? question.options.map(cleanText).filter(Boolean).slice(0, 5) : [];
-      const correctIndex = Number(question.correctIndex);
-
-      if (rawOptions.length !== 5 || correctIndex < 0 || correctIndex > 4) {
-        throw new Error("The AI returned a question without exactly five valid options");
-      }
-
-      const correctText = rawOptions[correctIndex];
-      const options = uniqueByKey(rawOptions, normalizeKey);
-      const normalizedCorrectIndex = options.findIndex((option) => normalizeKey(option) === normalizeKey(correctText));
-
-      if (options.length !== 5 || normalizedCorrectIndex < 0) {
-        throw new Error("The AI returned duplicate options or an invalid answer index");
-      }
-
-      if (hasNearDuplicateCorrectOption(options, normalizedCorrectIndex)) {
-        throw new Error("The AI returned another option too similar to the correct answer");
-      }
-
-      const randomizedOptions = randomizeOptions(options, normalizedCorrectIndex);
-
-      return {
-        id: `ai-${roundIndex}-${index}-${hashString(question.question || "")}`,
-        area: cleanText(question.area) || "Source concept",
-        type: "ai",
-        prompt: cleanText(question.question),
-        options: randomizedOptions.map((option, optionIndex) => ({
-          id: option.isCorrect ? "answer" : `ai-option-${optionIndex}-${hashString(option.text)}`,
-          text: option.text,
-        })),
-        answerId: "answer",
-        explanation: cleanText(question.explanation) || "The correct answer follows directly from the source text.",
-        source: cleanText(question.sourceQuote) || "Source text",
-        skillTag: cleanText(question.skillTag) || "Comprehension",
-        mapTopic: cleanMapTopic(question.mapTopic || question.skillTag || question.area || `Q${index + 1}`),
-      };
-    });
-
-    if (questions.length !== expectedCount) {
-      throw new Error(`The AI did not return exactly ${expectedCount} questions`);
-    }
+    const questions = payload.questions.map((question, index) => normalizeQblQuestion(question, index, roundIndex));
 
     return {
-      coverageSummary: cleanText(payload.coverageSummary || ""),
+      course: cleanCourse(payload.course),
+      learningGoals: normalizeStringArray(payload.learningGoals, ["Analyze individualized patient data to guide personalised nutrition care."]),
+      skills: normalizeStringArray(payload.skills, [QBL_SKILL]),
+      knowledgeBank: validateKnowledgeBank(payload.knowledgeBank),
+      coverageSummary: cleanText(payload.coverageSummary || payload.knowledgeBank || ""),
+      questionCount: QBL_QUESTION_COUNT,
       modelUsed: cleanText(payload.modelUsed || ""),
       questions,
     };
+  }
+
+  function normalizeQblQuestion(question, index, roundIndex) {
+    if (!question || typeof question !== "object") {
+      throw new Error(`QBL question ${index + 1} is missing`);
+    }
+
+    const prompt = cleanText(question.question || question.prompt);
+    if (!prompt) throw new Error(`QBL question ${index + 1} is missing question text`);
+    if (isLookupStyleQuestion(prompt)) throw new Error(`QBL question ${index + 1} looks like a lookup or definition question`);
+
+    const rawOptions = Array.isArray(question.options) ? question.options.slice(0, 4) : [];
+    if (rawOptions.length < 3) throw new Error(`QBL question ${index + 1} needs at least three answer options`);
+
+    const answerId = cleanText(question.answerId);
+    const normalizedOptions = rawOptions.map((option, optionIndex) => normalizeQblOption(option, optionIndex, answerId));
+    const optionTexts = normalizedOptions.map((option) => option.text);
+    const uniqueCount = uniqueByKey(optionTexts, normalizeKey).length;
+    if (uniqueCount !== normalizedOptions.length) throw new Error(`QBL question ${index + 1} has duplicate answer options`);
+
+    const correctOptions = normalizedOptions.filter((option) => option.isCorrect);
+    if (correctOptions.length !== 1) throw new Error(`QBL question ${index + 1} must have exactly one correct answer`);
+
+    const correctOption = correctOptions[0];
+    const correctIndex = normalizedOptions.findIndex((option) => option.id === correctOption.id);
+    if (hasNearDuplicateCorrectOption(optionTexts, correctIndex)) {
+      throw new Error(`QBL question ${index + 1} has an answer option too similar to the correct option`);
+    }
+
+    normalizedOptions.forEach((option) => validateQblFeedback(option, correctOption.text, index));
+
+    const difficulty = normalizeDifficulty(question.difficulty, index);
+    const targetedMisconception = cleanText(question.targetedMisconception);
+    if (!targetedMisconception) throw new Error(`QBL question ${index + 1} needs a targeted misconception`);
+
+    return {
+      id: cleanText(question.id) || `qbl-${roundIndex || 1}-${index}-${hashString(prompt)}`,
+      area: cleanText(question.area) || "Personalised Nutrition Care",
+      type: "qbl",
+      prompt,
+      options: normalizedOptions,
+      answerId: correctOption.id,
+      explanation: correctOption.feedback,
+      source: "QBL knowledge bank",
+      skillTag: cleanText(question.skillTag) || QBL_SKILL,
+      mapTopic: cleanMapTopic(question.mapTopic || targetedMisconception || difficulty),
+      difficulty,
+      targetedMisconception,
+    };
+  }
+
+  function normalizeQblOption(option, optionIndex, answerId) {
+    if (!option || typeof option !== "object") {
+      throw new Error("Each QBL answer option must be an object with id, text, isCorrect, and feedback");
+    }
+
+    const fallbackId = String.fromCharCode(65 + optionIndex);
+    const id = cleanText(option.id) || fallbackId;
+    const isCorrect = typeof option.isCorrect === "boolean" ? option.isCorrect : Boolean(answerId && id === answerId);
+
+    return {
+      id,
+      text: cleanText(option.text),
+      isCorrect,
+      feedback: cleanText(option.feedback),
+    };
+  }
+
+  function validateQblFeedback(option, correctText, questionIndex) {
+    if (!option.text) throw new Error(`QBL question ${questionIndex + 1} has an empty answer option`);
+    if (!option.feedback) throw new Error(`QBL question ${questionIndex + 1} has an answer option without feedback`);
+
+    if (option.isCorrect) {
+      if (!/^Correct\./.test(option.feedback)) {
+        throw new Error(`Correct feedback in QBL question ${questionIndex + 1} must begin with "Correct."`);
+      }
+      return;
+    }
+
+    if (!/^Incorrect\./.test(option.feedback)) {
+      throw new Error(`Incorrect feedback in QBL question ${questionIndex + 1} must begin with "Incorrect."`);
+    }
+    if (revealsCorrectAnswer(option.feedback, correctText)) {
+      throw new Error(`Incorrect feedback in QBL question ${questionIndex + 1} reveals the correct answer`);
+    }
+  }
+
+  function revealsCorrectAnswer(feedback, correctText) {
+    const feedbackKey = normalizeKey(feedback);
+    const correctKey = normalizeKey(correctText);
+    if (/\b(correct|right) answer\b/.test(feedbackKey) || /\banswer is\b/.test(feedbackKey)) return true;
+    return correctKey.length > 12 && feedbackKey.includes(correctKey);
+  }
+
+  function isLookupStyleQuestion(questionText) {
+    return /^(define\b|which option best defines|which .*definition|how is .*defined|what does .*mean|what is the definition)\b/i.test(cleanText(questionText));
+  }
+
+  function normalizeDifficulty(value, index) {
+    const difficulty = cleanText(value).toLowerCase();
+    if (["easy", "medium", "hard"].includes(difficulty)) return difficulty;
+    return ["easy", "medium", "hard"][index] || "medium";
+  }
+
+  function validateKnowledgeBank(value) {
+    const knowledgeBank = cleanText(value);
+    if (!knowledgeBank) throw new Error("The QBL response needs a knowledgeBank");
+    return knowledgeBank;
+  }
+
+  function cleanCourse(value) {
+    if (typeof value === "string") return cleanText(value) || "Personalised Nutrition Care";
+    if (value && typeof value === "object") return cleanText(value.title || value.name || value.description) || "Personalised Nutrition Care";
+    return "Personalised Nutrition Care";
+  }
+
+  function normalizeStringArray(value, fallback) {
+    if (!Array.isArray(value)) return fallback.slice();
+    const items = uniqueByKey(value.map(cleanText).filter(Boolean), normalizeKey);
+    return items.length ? items : fallback.slice();
   }
 
   function isAppReadyRound(payload) {
-    return payload.questions.every((question) => {
-      return (
-        question &&
-        typeof question.prompt === "string" &&
-        Array.isArray(question.options) &&
-        question.options.every((option) => option && typeof option.text === "string") &&
-        typeof question.answerId === "string"
-      );
-    });
+    return Boolean(
+      payload &&
+        Array.isArray(payload.questions) &&
+        payload.questions.every(
+          (question) =>
+            question &&
+            typeof question.prompt === "string" &&
+            Array.isArray(question.options) &&
+            question.options.every((option) => option && typeof option.text === "string") &&
+            typeof question.answerId === "string",
+        ),
+    );
   }
 
-  function validateAppReadyRound(payload, roundIndex) {
-    const expectedCount = getExpectedQuestionCount(payload, roundIndex);
-    const questions = payload.questions.slice(0, expectedCount).map((question, index) => {
-      const options = question.options.slice(0, 5).map((option, optionIndex) => ({
-        id: cleanText(option.id) || `ai-option-${optionIndex}-${hashString(option.text)}`,
-        text: cleanText(option.text),
-      }));
-      const answerId = cleanText(question.answerId);
-      const answerExists = options.some((option) => option.id === answerId);
-      const uniqueCount = uniqueByKey(options.map((option) => option.text), normalizeKey).length;
-
-      if (options.length !== 5 || !answerExists || uniqueCount !== 5) {
-        throw new Error("The backend returned an invalid quiz question");
-      }
-
-      const answerIndex = options.findIndex((option) => option.id === answerId);
-      if (hasNearDuplicateCorrectOption(options.map((option) => option.text), answerIndex)) {
-        throw new Error("The backend returned another option too similar to the correct answer");
-      }
-
-      const randomizedOptions = randomizeOptions(
-        options.map((option) => option.text),
-        answerIndex,
-      );
-
-      return {
-        id: cleanText(question.id) || `ai-${roundIndex}-${index}-${hashString(question.prompt || "")}`,
-        area: cleanText(question.area) || "Source concept",
-        type: cleanText(question.type) || "ai",
-        prompt: cleanText(question.prompt),
-        options: randomizedOptions.map((option, optionIndex) => ({
-          id: option.isCorrect ? "answer" : `ai-option-${optionIndex}-${hashString(option.text)}`,
-          text: option.text,
-        })),
-        answerId: "answer",
-        explanation: cleanText(question.explanation) || "The correct answer follows directly from the source text.",
-        source: cleanText(question.source) || "Source text",
-        skillTag: cleanText(question.skillTag) || "Comprehension",
-        mapTopic: cleanMapTopic(question.mapTopic || question.skillTag || question.area || `Q${index + 1}`),
-      };
-    });
-
-    if (questions.length !== expectedCount) {
-      throw new Error(`The backend did not return exactly ${expectedCount} questions`);
-    }
-
-    return {
-      coverageSummary: cleanText(payload.coverageSummary || ""),
-      modelUsed: cleanText(payload.modelUsed || ""),
-      questions,
-    };
+  function getDefaultQblSourceText() {
+    return DEFAULT_QBL_SOURCE_TEXT;
   }
-
-  function getExpectedQuestionCount(payload, fallback) {
-    const explicit = Number(payload?.questionCount || payload?.roundSize);
-    if (Number.isInteger(explicit) && explicit > 0) return explicit;
-    const fallbackNumber = Number(fallback);
-    if (Number.isInteger(fallbackNumber) && fallbackNumber > 0) return fallbackNumber;
-    if (Array.isArray(payload?.questions) && payload.questions.length > 0) return payload.questions.length;
-    return 5;
-  }
-
   function extractGeminiText(payload) {
     const parts = payload?.candidates?.[0]?.content?.parts || [];
     return parts.map((part) => part.text || "").join("").trim();
@@ -388,6 +432,7 @@
     getConfig,
     verifyAccessCode,
     getAccessCode,
+    getDefaultQblSourceText,
     _private: {
       buildSystemPrompt,
       buildUserPrompt,

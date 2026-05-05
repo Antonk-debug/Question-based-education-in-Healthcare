@@ -192,6 +192,7 @@ body.access-locked {
 
 h1,
 h2,
+h3,
 p {
   margin: 0;
 }
@@ -211,7 +212,8 @@ h1 {
   line-height: 1.35;
 }
 
-h2 {
+h2,
+h3 {
   font-size: 1rem;
   letter-spacing: 0;
 }
@@ -513,6 +515,25 @@ textarea:focus {
   transition: width 220ms ease;
 }
 
+.knowledge-bank {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.knowledge-bank h3 {
+  color: var(--accent-strong);
+}
+
+.knowledge-bank p {
+  color: var(--ink);
+  line-height: 1.5;
+}
+
 .empty-state {
   min-height: 430px;
   display: grid;
@@ -760,6 +781,26 @@ fieldset {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--button-ink);
+}
+
+.option-feedback {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 12px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.option-feedback.correct {
+  border-color: rgba(35, 119, 79, 0.45);
+  background: var(--green-soft);
+}
+
+.option-feedback.wrong {
+  border-color: rgba(186, 65, 72, 0.42);
+  background: var(--rose-soft);
 }
 
 .progress-wrap {
