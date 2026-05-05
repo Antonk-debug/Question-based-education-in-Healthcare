@@ -343,6 +343,59 @@ textarea:focus {
   box-shadow: 0 0 0 4px rgba(20, 108, 112, 0.14);
 }
 
+.setup-note {
+  margin-bottom: 14px;
+  border: 1px solid rgba(20, 108, 112, 0.22);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.4;
+  padding: 10px 12px;
+}
+
+.setup-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.setup-field {
+  display: grid;
+  gap: 6px;
+}
+
+.field-label {
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.field-helper {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.setup-textarea {
+  min-height: 96px;
+  max-height: 34vh;
+  padding: 12px;
+}
+
+.setup-textarea-small {
+  min-height: 94px;
+}
+
+.setup-textarea-medium {
+  min-height: 118px;
+}
+
+.setup-textarea-large {
+  min-height: 260px;
+  max-height: 52vh;
+}
+
 .ai-panel {
   display: grid;
   gap: 10px;
@@ -1055,6 +1108,15 @@ fieldset {
 
   textarea {
     min-height: 300px;
+  }
+
+  .setup-textarea-small,
+  .setup-textarea-medium {
+    min-height: 110px;
+  }
+
+  .setup-textarea-large {
+    min-height: 240px;
   }
 
   .source-actions,

@@ -16,11 +16,22 @@ IS_HOSTED_RUNTIME = bool(os.environ.get("PORT") or os.environ.get("RENDER"))
 PORT = int(os.environ.get("PORT") or ("10000" if os.environ.get("RENDER") else "4173"))
 
 QBL_QUESTION_COUNT = 3
-QBL_COURSE_DESCRIPTION = (
-    "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on \"Personalised Nutrition Care,\" updating clinical skills to integrate nutrigenomics, microbiome analysis, and individualized metabolic profiling alongside Nordic dietary guidelines (e.g., NNR 2023) to create highly tailored patient interventions."
+DEFAULT_QBL_COURSE_DESCRIPTION = (
+    "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on Personalised Nutrition Care, integrating nutrigenomics, microbiome analysis, and individualized metabolic profiling with Swedish dietary guidelines such as NNR 2023."
 )
-QBL_SKILL = (
-    "Analyzing patient continuous glucose monitor (CGM) data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with population-level carbohydrate guidelines, interpreted within the patient\u2019s broader metabolic health picture and used to inform, not override, tailored dietary prescriptions."
+DEFAULT_QBL_LEARNING_GOAL = (
+    "Apply personalised nutrition principles to create individualized dietary interventions while still considering evidence-based Swedish dietary guidelines."
+)
+DEFAULT_QBL_SELECTED_SKILL = (
+    "Analyzing patient continuous glucose monitor, CGM, data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with standard population-level carbohydrate guidelines."
+)
+DEFAULT_QBL_SOURCE_TEXT = "\n".join(
+    [
+        "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on \"Personalised Nutrition Care,\" updating clinical skills to integrate nutrigenomics, microbiome analysis, and individualized metabolic profiling alongside Nordic dietary guidelines (e.g., NNR 2023) to create highly tailored patient interventions.",
+        "",
+        "Skill context:",
+        "Analyzing patient continuous glucose monitor (CGM) data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with population-level carbohydrate guidelines, interpreted within the patient\u2019s broader metabolic health picture and used to inform, not override, tailored dietary prescriptions.",
+    ]
 )
 
 
@@ -56,12 +67,15 @@ GEMINI_MODELS = [model.strip() for model in CONFIGURED_GEMINI_MODELS.split(",") 
 # QBL system prompt is defined here for local Python mode. It mirrors the browser/Node prompt contract.
 SYSTEM_PROMPT = " ".join(
     [
-        "You are an expert Question-Based Learning designer for continuing education in clinical dietetics.",
+        "You are an expert Question-Based Learning designer for professional and continuing education.",
         "Question-Based Learning is for learning through answering questions, not for evaluation. If the learner already knows all answers from the start, there is nothing to learn from the course.",
-        "Generate QBL-style learning content for one skill at a time.",
-        "Use the supplied course description, selected skill, and source text as the complete educational context.",
-        "Create a short knowledge bank first, then exactly three multiple-choice QBL questions of varying difficulty: easy, medium, and hard.",
-        "Questions must be appropriate for qualified practising dietitians and must encourage understanding, application, or analysis.",
+        "Generate QBL-style learning content for one selected skill at a time.",
+        "Use the supplied course description, learning goal, selected skill, and source text as the complete educational context.",
+        "Do not assume a dietetics, healthcare, CGM, or nutrition topic unless those details appear in the supplied fields.",
+        "Create a short but informative knowledge bank about the selected skill, based mainly on the source text.",
+        "Create exactly three multiple-choice QBL questions of varying difficulty: easy, medium, and hard.",
+        "Questions must fit the target group and subject area described in the course description.",
+        "Questions must encourage understanding, application, or analysis, not simple memorization.",
         "Do not create simple lookup, recall, or definition questions.",
         "Each question must be easy to understand, unambiguous, and focused on one common misconception.",
         "Each question must have exactly four answer options with ids A, B, C, and D.",
@@ -73,10 +87,9 @@ SYSTEM_PROMPT = " ".join(
         "Incorrect feedback must be short, constructive, and guide the learner without revealing, naming, quoting, or describing the correct answer.",
         "Never write 'The correct answer is' or similar wording in incorrect feedback.",
         "Return only valid JSON. Do not wrap it in markdown.",
-        'Return this exact JSON shape: {"course":"string","learningGoals":["string"],"skills":["string"],"knowledgeBank":"string","questionCount":3,"questions":[{"difficulty":"easy","targetedMisconception":"string","question":"string","options":[{"id":"A","text":"string","isCorrect":true,"feedback":"Correct. string"},{"id":"B","text":"string","isCorrect":false,"feedback":"Incorrect. string"}]}]}.',
+        'Return this exact JSON shape: {"course":"string","learningGoal":"string","skill":"string","knowledgeBank":"string","questionCount":3,"questions":[{"difficulty":"easy","targetedMisconception":"string","question":"string","options":[{"id":"A","text":"string","isCorrect":true,"feedback":"Correct. string"},{"id":"B","text":"string","isCorrect":false,"feedback":"Incorrect. string"}]}]}.',
     ]
 )
-
 
 class QuizHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -147,12 +160,29 @@ class QuizHandler(BaseHTTPRequestHandler):
             self.send_json(500, {"error": "Gemini API key is missing on the backend"})
             return
 
-        text = str(body.get("text", "")).strip()
+        # The four QBL setup fields arrive here from the browser before they are inserted into the AI prompt.
+        course_description = str(body.get("courseDescription", "")).strip()
+        learning_goal = str(body.get("learningGoal", "")).strip()
+        selected_skill = str(body.get("selectedSkill") or body.get("skill") or "").strip()
+        text = str(body.get("text") or body.get("sourceText") or "").strip()
+        if not course_description or not learning_goal or not selected_skill or not text:
+            self.send_json(400, {"error": "Complete the course description, learning goal, selected skill, and source text first"})
+            return
         if len(text) < 40:
-            self.send_json(400, {"error": "Paste a little more educational text first"})
+            self.send_json(400, {"error": "Add a little more source text first"})
             return
 
-        prompt = "\n\n".join([SYSTEM_PROMPT, build_user_prompt(body)])
+        generation_settings = dict(body)
+        generation_settings.update(
+            {
+                "courseDescription": course_description,
+                "learningGoal": learning_goal,
+                "selectedSkill": selected_skill,
+                "text": text,
+            }
+        )
+
+        prompt = "\n\n".join([SYSTEM_PROMPT, build_user_prompt(generation_settings)])
         request_body = json.dumps(
             {
                 "contents": [{"parts": [{"text": prompt}]}],
@@ -174,7 +204,7 @@ class QuizHandler(BaseHTTPRequestHandler):
         try:
             # The AI JSON response is parsed here, then validated into the app-ready QBL shape.
             parsed = parse_json_from_text(output_text)
-            normalized = normalize_qbl_round(parsed, int(body.get("roundIndex", 1) or 1))
+            normalized = normalize_qbl_round(parsed, int(body.get("roundIndex", 1) or 1), generation_settings)
             normalized["modelUsed"] = model_used
             self.send_json(200, normalized)
         except Exception as error:
@@ -275,7 +305,17 @@ def is_retryable_gemini_error(error):
     return error.status_code in {429, 500, 502, 503, 504} or "high demand" in message or "temporarily" in message or "unavailable" in message
 
 
+def get_qbl_context(settings):
+    return {
+        "courseDescription": clean_text(settings.get("courseDescription") or settings.get("course") or DEFAULT_QBL_COURSE_DESCRIPTION),
+        "learningGoal": clean_text(settings.get("learningGoal") or DEFAULT_QBL_LEARNING_GOAL),
+        "selectedSkill": clean_text(settings.get("selectedSkill") or settings.get("skill") or DEFAULT_QBL_SELECTED_SKILL),
+        "sourceText": clean_text(settings.get("sourceText") or settings.get("text") or DEFAULT_QBL_SOURCE_TEXT),
+    }
+
+
 def build_user_prompt(settings):
+    qbl_context = get_qbl_context(settings)
     weak_areas = settings.get("weakAreas") if isinstance(settings.get("weakAreas"), list) else []
     mistakes = settings.get("previousMistakes") if isinstance(settings.get("previousMistakes"), list) else []
     mistake_text = "No previous mistakes."
@@ -290,27 +330,24 @@ def build_user_prompt(settings):
 
     return "\n\n".join(
         [
-            # Course and selected skill context are inserted into the user prompt here for the QBL generation call.
-            "Course:",
-            "Personalised Nutrition Care",
+            # Course description, learning goal, selected skill, and source text are inserted into the QBL prompt here.
             "Course description:",
-            QBL_COURSE_DESCRIPTION,
+            qbl_context["courseDescription"],
             "Learning goal:",
-            "Use patient-specific data to reason beyond population-level dietary assumptions and select more individualized nutrition interventions.",
+            qbl_context["learningGoal"],
             "Selected skill:",
-            QBL_SKILL,
+            qbl_context["selectedSkill"],
             f"Round: {settings.get('roundIndex', 1)}",
             f"Number of QBL questions to generate: {QBL_QUESTION_COUNT}",
             f"Weak areas from earlier answers: {', '.join(weak_areas) if weak_areas else 'None yet'}",
             "Previous learner mistakes:",
             mistake_text,
-            "Source text or instructor notes:",
-            str(settings.get("text", "")),
-            "Output language: English unless the source text is clearly written in another language. Preserve Swedish guideline names and technical terms such as NNR 2023 and CGM.",
+            "Source text:",
+            qbl_context["sourceText"],
+            "Output language: English unless the course description, learning goal, selected skill, or source text is clearly written in another language. Preserve technical terms, guideline names, and proper nouns from the supplied context.",
             "Generate the QBL knowledge bank and three questions now.",
         ]
     )
-
 
 def extract_gemini_text(payload):
     candidates = payload.get("candidates") if isinstance(payload, dict) else []
@@ -337,25 +374,30 @@ def parse_json_from_text(text):
             raise
 
 
-def normalize_qbl_round(payload, round_index):
+def normalize_qbl_round(payload, round_index, context=None):
+    qbl_context = get_qbl_context(context or {})
     if not isinstance(payload, dict) or not isinstance(payload.get("questions"), list):
         raise ValueError("The AI response had the wrong QBL shape")
     if len(payload["questions"]) != QBL_QUESTION_COUNT:
         raise ValueError(f"The AI must return exactly {QBL_QUESTION_COUNT} QBL questions")
 
-    questions = [normalize_qbl_question(question, index, round_index) for index, question in enumerate(payload["questions"])]
+    learning_goal = clean_text(payload.get("learningGoal")) or normalize_string_array(payload.get("learningGoals"), [qbl_context["learningGoal"]])[0]
+    skill = clean_text(payload.get("skill")) or normalize_string_array(payload.get("skills"), [qbl_context["selectedSkill"]])[0]
+    questions = [normalize_qbl_question(question, index, round_index, qbl_context) for index, question in enumerate(payload["questions"])]
     return {
-        "course": clean_course(payload.get("course")),
-        "learningGoals": normalize_string_array(payload.get("learningGoals"), ["Analyze individualized patient data to guide personalised nutrition care."]),
-        "skills": normalize_string_array(payload.get("skills"), [QBL_SKILL]),
+        "course": clean_course(payload.get("course"), qbl_context["courseDescription"]),
+        "learningGoal": learning_goal,
+        "skill": skill,
+        "learningGoals": normalize_string_array(payload.get("learningGoals") or [payload.get("learningGoal")], [learning_goal]),
+        "skills": normalize_string_array(payload.get("skills") or [payload.get("skill")], [skill]),
         "knowledgeBank": validate_knowledge_bank(payload.get("knowledgeBank")),
         "coverageSummary": clean_text(payload.get("coverageSummary") or payload.get("knowledgeBank") or ""),
         "questionCount": QBL_QUESTION_COUNT,
         "questions": questions,
     }
 
-
-def normalize_qbl_question(question, index, round_index):
+def normalize_qbl_question(question, index, round_index, context=None):
+    qbl_context = get_qbl_context(context or {})
     if not isinstance(question, dict):
         raise ValueError(f"QBL question {index + 1} is missing")
 
@@ -394,19 +436,18 @@ def normalize_qbl_question(question, index, round_index):
 
     return {
         "id": clean_text(question.get("id")) or f"qbl-{round_index or 1}-{index}-{stable_hash(prompt)}",
-        "area": clean_text(question.get("area")) or "Personalised Nutrition Care",
+        "area": clean_text(question.get("area")) or clean_map_topic(qbl_context["selectedSkill"] or qbl_context["courseDescription"]),
         "type": "qbl",
         "prompt": prompt,
         "options": options,
         "answerId": correct_option["id"],
         "explanation": correct_option["feedback"],
         "source": "QBL knowledge bank",
-        "skillTag": clean_text(question.get("skillTag")) or QBL_SKILL,
+        "skillTag": clean_text(question.get("skillTag")) or qbl_context["selectedSkill"],
         "mapTopic": clean_map_topic(question.get("mapTopic") or targeted_misconception or difficulty),
         "difficulty": difficulty,
         "targetedMisconception": targeted_misconception,
     }
-
 
 def normalize_qbl_option(option, option_index, answer_id):
     if not isinstance(option, dict):
@@ -463,12 +504,13 @@ def validate_knowledge_bank(value):
     return knowledge_bank
 
 
-def clean_course(value):
+def clean_course(value, fallback):
+    fallback_course = clean_text(fallback) or "QBL activity"
     if isinstance(value, str):
-        return clean_text(value) or "Personalised Nutrition Care"
+        return clean_text(value) or fallback_course
     if isinstance(value, dict):
-        return clean_text(value.get("title") or value.get("name") or value.get("description")) or "Personalised Nutrition Care"
-    return "Personalised Nutrition Care"
+        return clean_text(value.get("title") or value.get("name") or value.get("description")) or fallback_course
+    return fallback_course
 
 
 def normalize_string_array(value, fallback):

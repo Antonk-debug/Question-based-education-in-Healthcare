@@ -359,6 +359,59 @@ textarea:focus {
   box-shadow: 0 0 0 4px rgba(20, 108, 112, 0.14);
 }
 
+.setup-note {
+  margin-bottom: 14px;
+  border: 1px solid rgba(20, 108, 112, 0.22);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.4;
+  padding: 10px 12px;
+}
+
+.setup-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.setup-field {
+  display: grid;
+  gap: 6px;
+}
+
+.field-label {
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.field-helper {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.setup-textarea {
+  min-height: 96px;
+  max-height: 34vh;
+  padding: 12px;
+}
+
+.setup-textarea-small {
+  min-height: 94px;
+}
+
+.setup-textarea-medium {
+  min-height: 118px;
+}
+
+.setup-textarea-large {
+  min-height: 260px;
+  max-height: 52vh;
+}
+
 .ai-panel {
   display: grid;
   gap: 10px;
@@ -1073,6 +1126,15 @@ fieldset {
     min-height: 300px;
   }
 
+  .setup-textarea-small,
+  .setup-textarea-medium {
+    min-height: 110px;
+  }
+
+  .setup-textarea-large {
+    min-height: 240px;
+  }
+
   .source-actions,
   .quiz-actions,
   .next-actions,
@@ -1114,13 +1176,55 @@ fieldset {
       </header>
 
       <main class="workspace">
-        <section class="source-panel" aria-label="Source text">
-          <textarea
-            id="sourceText"
-            spellcheck="true"
-            aria-label="Source text"
-            placeholder="Paste course notes, patient-data context, or instructor guidance for this QBL skill."
-          ></textarea>
+        <section class="source-panel" aria-label="QBL setup">
+          <p class="setup-note">The default content below can be replaced or edited</p>
+
+          <div class="setup-fields">
+            <label class="setup-field" for="courseDescription">
+              <span class="field-label">Course description</span>
+              <span class="field-helper" id="courseDescriptionHelp">Briefly describe the course, target group, and subject area.</span>
+              <textarea
+                class="setup-textarea setup-textarea-small"
+                id="courseDescription"
+                spellcheck="true"
+                aria-describedby="courseDescriptionHelp"
+              ></textarea>
+            </label>
+
+            <label class="setup-field" for="learningGoal">
+              <span class="field-label">Learning goal</span>
+              <span class="field-helper" id="learningGoalHelp">Describe what the learner should be able to do after the activity.</span>
+              <textarea
+                class="setup-textarea setup-textarea-small"
+                id="learningGoal"
+                spellcheck="true"
+                aria-describedby="learningGoalHelp"
+              ></textarea>
+            </label>
+
+            <label class="setup-field" for="selectedSkill">
+              <span class="field-label">Selected skill</span>
+              <span class="field-helper" id="selectedSkillHelp">Describe the specific skill that the questions should train.</span>
+              <textarea
+                class="setup-textarea setup-textarea-medium"
+                id="selectedSkill"
+                spellcheck="true"
+                aria-describedby="selectedSkillHelp"
+              ></textarea>
+            </label>
+
+            <label class="setup-field" for="sourceText">
+              <span class="field-label">Source text</span>
+              <span class="field-helper" id="sourceTextHelp">Paste the material that the knowledge bank and questions should be based on.</span>
+              <textarea
+                class="setup-textarea setup-textarea-large"
+                id="sourceText"
+                spellcheck="true"
+                aria-describedby="sourceTextHelp"
+                placeholder="Replace the example text with course notes, patient-data context, or instructor guidance."
+              ></textarea>
+            </label>
+          </div>
 
           <div class="source-actions">
             <button class="primary-button" id="generateButton" type="button">Generate QBL</button>
@@ -1159,7 +1263,7 @@ fieldset {
               <span></span>
               <span></span>
             </div>
-            <p>Questions appear here after the source text is analyzed.</p>
+            <p>Questions appear here after the QBL setup is analyzed.</p>
           </div>
 
           <form id="quizForm" class="question-stack hidden"></form>
@@ -2171,16 +2275,32 @@ fieldset {
 
   const ACCESS_CODE_KEY = "adaptiveQuizAccessCode";
   const QBL_QUESTION_COUNT = 3;
-  const QBL_COURSE_DESCRIPTION =
-    "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on \"Personalised Nutrition Care,\" updating clinical skills to integrate nutrigenomics, microbiome analysis, and individualized metabolic profiling alongside Nordic dietary guidelines (e.g., NNR 2023) to create highly tailored patient interventions.";
-  const QBL_SKILL =
-    "Analyzing patient continuous glucose monitor (CGM) data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with population-level carbohydrate guidelines, interpreted within the patient\u2019s broader metabolic health picture and used to inform, not override, tailored dietary prescriptions.";
-  const DEFAULT_QBL_SOURCE_TEXT = `${QBL_COURSE_DESCRIPTION}\n\nSelected skill:\n${QBL_SKILL}`;
+  const DEFAULT_QBL_COURSE_DESCRIPTION =
+    "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on Personalised Nutrition Care, integrating nutrigenomics, microbiome analysis, and individualized metabolic profiling with Swedish dietary guidelines such as NNR 2023.";
+  const DEFAULT_QBL_LEARNING_GOAL =
+    "Apply personalised nutrition principles to create individualized dietary interventions while still considering evidence-based Swedish dietary guidelines.";
+  const DEFAULT_QBL_SELECTED_SKILL =
+    "Analyzing patient continuous glucose monitor, CGM, data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with standard population-level carbohydrate guidelines.";
+  const DEFAULT_QBL_SOURCE_TEXT = [
+    "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on \"Personalised Nutrition Care,\" updating clinical skills to integrate nutrigenomics, microbiome analysis, and individualized metabolic profiling alongside Nordic dietary guidelines (e.g., NNR 2023) to create highly tailored patient interventions.",
+    "",
+    "Skill context:",
+    "Analyzing patient continuous glucose monitor (CGM) data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with population-level carbohydrate guidelines, interpreted within the patient\u2019s broader metabolic health picture and used to inform, not override, tailored dietary prescriptions.",
+  ].join("\n");
+  const DEFAULT_QBL_SETUP = Object.freeze({
+    courseDescription: DEFAULT_QBL_COURSE_DESCRIPTION,
+    learningGoal: DEFAULT_QBL_LEARNING_GOAL,
+    selectedSkill: DEFAULT_QBL_SELECTED_SKILL,
+    sourceText: DEFAULT_QBL_SOURCE_TEXT,
+  });
 
   async function generateQuiz(options) {
     const settings = Object.assign(
       {
-        text: "",
+        courseDescription: DEFAULT_QBL_COURSE_DESCRIPTION,
+        learningGoal: DEFAULT_QBL_LEARNING_GOAL,
+        selectedSkill: DEFAULT_QBL_SELECTED_SKILL,
+        text: DEFAULT_QBL_SOURCE_TEXT,
         roundSize: QBL_QUESTION_COUNT,
         weakAreas: [],
         previousMistakes: [],
@@ -2207,7 +2327,7 @@ fieldset {
       throw requestError(message, response.status);
     }
 
-    return normalizeAiRound(payload, settings.roundIndex);
+    return normalizeAiRound(payload, settings.roundIndex, settings);
   }
 
   async function getConfig() {
@@ -2269,12 +2389,15 @@ fieldset {
   // QBL system prompt is defined here. It sets the learning philosophy, JSON contract, and validation rules Gemini should follow.
   function buildSystemPrompt() {
     return [
-      "You are an expert Question-Based Learning designer for continuing education in clinical dietetics.",
+      "You are an expert Question-Based Learning designer for professional and continuing education.",
       "Question-Based Learning is for learning through answering questions, not for evaluation. If the learner already knows all answers from the start, there is nothing to learn from the course.",
-      "Generate QBL-style learning content for one skill at a time.",
-      "Use the supplied course description, selected skill, and source text as the complete educational context.",
-      "Create a short knowledge bank first, then exactly three multiple-choice QBL questions of varying difficulty: easy, medium, and hard.",
-      "Questions must be appropriate for qualified practising dietitians and must encourage understanding, application, or analysis.",
+      "Generate QBL-style learning content for one selected skill at a time.",
+      "Use the supplied course description, learning goal, selected skill, and source text as the complete educational context.",
+      "Do not assume a dietetics, healthcare, CGM, or nutrition topic unless those details appear in the supplied fields.",
+      "Create a short but informative knowledge bank about the selected skill, based mainly on the source text.",
+      "Create exactly three multiple-choice QBL questions of varying difficulty: easy, medium, and hard.",
+      "Questions must fit the target group and subject area described in the course description.",
+      "Questions must encourage understanding, application, or analysis, not simple memorization.",
       "Do not create simple lookup, recall, or definition questions.",
       "Each question must be easy to understand, unambiguous, and focused on one common misconception.",
       "Each question must have exactly four answer options with ids A, B, C, and D.",
@@ -2286,11 +2409,21 @@ fieldset {
       "Incorrect feedback must be short, constructive, and guide the learner without revealing, naming, quoting, or describing the correct answer.",
       "Never write 'The correct answer is' or similar wording in incorrect feedback.",
       "Return only valid JSON. Do not wrap it in markdown.",
-      "Return this exact JSON shape: {\"course\":\"string\",\"learningGoals\":[\"string\"],\"skills\":[\"string\"],\"knowledgeBank\":\"string\",\"questionCount\":3,\"questions\":[{\"difficulty\":\"easy\",\"targetedMisconception\":\"string\",\"question\":\"string\",\"options\":[{\"id\":\"A\",\"text\":\"string\",\"isCorrect\":true,\"feedback\":\"Correct. string\"},{\"id\":\"B\",\"text\":\"string\",\"isCorrect\":false,\"feedback\":\"Incorrect. string\"}]}]}.",
+      "Return this exact JSON shape: {\"course\":\"string\",\"learningGoal\":\"string\",\"skill\":\"string\",\"knowledgeBank\":\"string\",\"questionCount\":3,\"questions\":[{\"difficulty\":\"easy\",\"targetedMisconception\":\"string\",\"question\":\"string\",\"options\":[{\"id\":\"A\",\"text\":\"string\",\"isCorrect\":true,\"feedback\":\"Correct. string\"},{\"id\":\"B\",\"text\":\"string\",\"isCorrect\":false,\"feedback\":\"Incorrect. string\"}]}]}.",
     ].join(" ");
   }
 
+  function getQblContext(settings) {
+    const source = settings || {};
+    return {
+      courseDescription: cleanText(source.courseDescription || source.course || DEFAULT_QBL_COURSE_DESCRIPTION),
+      learningGoal: cleanText(source.learningGoal || DEFAULT_QBL_LEARNING_GOAL),
+      selectedSkill: cleanText(source.selectedSkill || source.skill || DEFAULT_QBL_SELECTED_SKILL),
+      sourceText: cleanText(source.sourceText || source.text || DEFAULT_QBL_SOURCE_TEXT),
+    };
+  }
   function buildUserPrompt(settings) {
+    const qblContext = getQblContext(settings);
     const weakAreas = settings.weakAreas?.length ? settings.weakAreas.join(", ") : "None yet";
     const mistakes = settings.previousMistakes?.length
       ? settings.previousMistakes
@@ -2300,29 +2433,27 @@ fieldset {
       : "No previous mistakes.";
 
     return [
-      // Course and selected skill context are inserted into the user prompt here for the QBL generation call.
-      "Course:",
-      "Personalised Nutrition Care",
+      // Course description, learning goal, selected skill, and source text are inserted into the QBL prompt here.
       "Course description:",
-      QBL_COURSE_DESCRIPTION,
+      qblContext.courseDescription,
       "Learning goal:",
-      "Use patient-specific data to reason beyond population-level dietary assumptions and select more individualized nutrition interventions.",
+      qblContext.learningGoal,
       "Selected skill:",
-      QBL_SKILL,
+      qblContext.selectedSkill,
       `Round: ${settings.roundIndex || 1}`,
       `Number of QBL questions to generate: ${QBL_QUESTION_COUNT}`,
       `Weak areas from earlier answers: ${weakAreas}`,
       "Previous learner mistakes:",
       mistakes,
-      "Source text or instructor notes:",
-      cleanText(settings.text) || DEFAULT_QBL_SOURCE_TEXT,
-      "Output language: English unless the source text is clearly written in another language. Preserve Swedish guideline names and technical terms such as NNR 2023 and CGM.",
+      "Source text:",
+      qblContext.sourceText,
+      "Output language: English unless the course description, learning goal, selected skill, or source text is clearly written in another language. Preserve technical terms, guideline names, and proper nouns from the supplied context.",
       "Generate the QBL knowledge bank and three questions now.",
     ].join("\n\n");
   }
-
-  function normalizeAiRound(payload, roundIndex) {
+  function normalizeAiRound(payload, roundIndex, context) {
     // The parsed AI JSON response is normalized and validated here before the app renders it.
+    const qblContext = getQblContext(context);
     if (!payload || !Array.isArray(payload.questions)) {
       throw new Error("The AI response had the wrong QBL shape");
     }
@@ -2331,12 +2462,16 @@ fieldset {
       throw new Error(`The AI must return exactly ${QBL_QUESTION_COUNT} QBL questions`);
     }
 
-    const questions = payload.questions.map((question, index) => normalizeQblQuestion(question, index, roundIndex));
+    const learningGoal = cleanText(payload.learningGoal) || normalizeStringArray(payload.learningGoals, [qblContext.learningGoal])[0];
+    const skill = cleanText(payload.skill) || normalizeStringArray(payload.skills, [qblContext.selectedSkill])[0];
+    const questions = payload.questions.map((question, index) => normalizeQblQuestion(question, index, roundIndex, qblContext));
 
     return {
-      course: cleanCourse(payload.course),
-      learningGoals: normalizeStringArray(payload.learningGoals, ["Analyze individualized patient data to guide personalised nutrition care."]),
-      skills: normalizeStringArray(payload.skills, [QBL_SKILL]),
+      course: cleanCourse(payload.course, qblContext.courseDescription),
+      learningGoal,
+      skill,
+      learningGoals: normalizeStringArray(payload.learningGoals || [payload.learningGoal], [learningGoal]),
+      skills: normalizeStringArray(payload.skills || [payload.skill], [skill]),
       knowledgeBank: validateKnowledgeBank(payload.knowledgeBank),
       coverageSummary: cleanText(payload.coverageSummary || payload.knowledgeBank || ""),
       questionCount: QBL_QUESTION_COUNT,
@@ -2344,8 +2479,8 @@ fieldset {
       questions,
     };
   }
-
-  function normalizeQblQuestion(question, index, roundIndex) {
+  function normalizeQblQuestion(question, index, roundIndex, context) {
+    const qblContext = getQblContext(context);
     if (!question || typeof question !== "object") {
       throw new Error(`QBL question ${index + 1} is missing`);
     }
@@ -2380,20 +2515,19 @@ fieldset {
 
     return {
       id: cleanText(question.id) || `qbl-${roundIndex || 1}-${index}-${hashString(prompt)}`,
-      area: cleanText(question.area) || "Personalised Nutrition Care",
+      area: cleanText(question.area) || cleanMapTopic(qblContext.selectedSkill || qblContext.courseDescription),
       type: "qbl",
       prompt,
       options: normalizedOptions,
       answerId: correctOption.id,
       explanation: correctOption.feedback,
       source: "QBL knowledge bank",
-      skillTag: cleanText(question.skillTag) || QBL_SKILL,
+      skillTag: cleanText(question.skillTag) || qblContext.selectedSkill,
       mapTopic: cleanMapTopic(question.mapTopic || targetedMisconception || difficulty),
       difficulty,
       targetedMisconception,
     };
   }
-
   function normalizeQblOption(option, optionIndex, answerId) {
     if (!option || typeof option !== "object") {
       throw new Error("Each QBL answer option must be an object with id, text, isCorrect, and feedback");
@@ -2453,10 +2587,11 @@ fieldset {
     return knowledgeBank;
   }
 
-  function cleanCourse(value) {
-    if (typeof value === "string") return cleanText(value) || "Personalised Nutrition Care";
-    if (value && typeof value === "object") return cleanText(value.title || value.name || value.description) || "Personalised Nutrition Care";
-    return "Personalised Nutrition Care";
+  function cleanCourse(value, fallback) {
+    const fallbackCourse = cleanText(fallback) || "QBL activity";
+    if (typeof value === "string") return cleanText(value) || fallbackCourse;
+    if (value && typeof value === "object") return cleanText(value.title || value.name || value.description) || fallbackCourse;
+    return fallbackCourse;
   }
 
   function normalizeStringArray(value, fallback) {
@@ -2482,6 +2617,10 @@ fieldset {
 
   function getDefaultQblSourceText() {
     return DEFAULT_QBL_SOURCE_TEXT;
+  }
+
+  function getDefaultQblSetup() {
+    return Object.assign({}, DEFAULT_QBL_SETUP);
   }
   function extractGeminiText(payload) {
     const parts = payload?.candidates?.[0]?.content?.parts || [];
@@ -2595,6 +2734,7 @@ fieldset {
     verifyAccessCode,
     getAccessCode,
     getDefaultQblSourceText,
+    getDefaultQblSetup,
     _private: {
       buildSystemPrompt,
       buildUserPrompt,
@@ -2622,6 +2762,9 @@ fieldset {
     accessSubmitButton: document.getElementById("accessSubmitButton"),
     themeToggle: document.getElementById("themeToggle"),
     themeToggleText: document.getElementById("themeToggleText"),
+    courseDescription: document.getElementById("courseDescription"),
+    learningGoal: document.getElementById("learningGoal"),
+    selectedSkill: document.getElementById("selectedSkill"),
     sourceText: document.getElementById("sourceText"),
     generateButton: document.getElementById("generateButton"),
     clearButton: document.getElementById("clearButton"),
@@ -2668,6 +2811,9 @@ fieldset {
     previousQuestionIds: [],
     aiMode: false,
     aiModelUsed: "",
+    courseDescription: "",
+    learningGoal: "",
+    selectedSkill: "",
     sourceText: "",
     knowledgeBank: "",
     course: "",
@@ -2678,7 +2824,7 @@ fieldset {
   };
 
   initTheme();
-  loadDefaultSourceText();
+  loadDefaultQblSetup();
 
   els.accessForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -2686,7 +2832,8 @@ fieldset {
   });
 
   els.clearButton.addEventListener("click", () => {
-    resetQuiz({ clearSource: true, clearStatusMessage: true });
+    const restoreExamples = window.confirm("Restore the example QBL setup? Choose Cancel to clear all fields.");
+    resetQuiz({ fieldMode: restoreExamples ? "restore" : "clear", clearStatusMessage: true });
   });
 
   els.editButton.addEventListener("click", () => {
@@ -2735,14 +2882,22 @@ fieldset {
   }
 
   async function generateQuiz() {
-    const text = els.sourceText.value.trim();
+    // The four editable QBL setup fields are read here before the app asks Gemini to generate the activity.
+    const setup = readQblSetup();
+    const generationText = buildGenerationContext(setup);
     const roundSize = QBL_QUESTION_COUNT;
 
     clearStatus();
-    setLoading(8, "Reading your context");
+    setLoading(8, "Reading your QBL setup");
 
-    if (text.length < 40) {
-      showStatus("Paste a little more educational text first. Two or three clear facts is enough.");
+    if (!setup.courseDescription || !setup.learningGoal || !setup.selectedSkill || !setup.sourceText) {
+      showStatus("Complete the course description, learning goal, selected skill, and source text first.");
+      hideLoading();
+      return;
+    }
+
+    if (setup.sourceText.length < 40) {
+      showStatus("Add a little more source text first. A short paragraph of notes is enough.");
       hideLoading();
       return;
     }
@@ -2755,16 +2910,19 @@ fieldset {
       setLoading(34, "Building the QBL knowledge bank");
       await pause(120);
 
-      const session = window.QuizEngine.createSession(text, { roundSize });
+      const session = window.QuizEngine.createSession(generationText, { roundSize });
 
       if (!session.facts.length) {
-        showStatus("I could not find enough clear study points. Try pasting notes with a few definitions, causes, steps, or examples.");
+        showStatus("I could not find enough clear study points. Try adding a few concrete notes, examples, steps, or decision points.");
         hideLoading();
         return;
       }
 
       state.session = session;
-      state.sourceText = text;
+      state.courseDescription = setup.courseDescription;
+      state.learningGoal = setup.learningGoal;
+      state.selectedSkill = setup.selectedSkill;
+      state.sourceText = setup.sourceText;
       state.aiMode = true;
       state.roundIndex = 1;
       state.history = [];
@@ -2780,12 +2938,12 @@ fieldset {
 
       const started = state.questions.length > 0;
       if (!started) {
-        showStatus("The text was readable, but I could not form quiz questions from it. Add one or two more factual sentences and try again.");
+        showStatus("The setup was readable, but I could not form QBL questions from it. Add one or two more source details and try again.");
         hideLoading();
         return;
       }
 
-      setLoading(100, "Quiz ready");
+      setLoading(100, "QBL activity ready");
       showStatus(getSuccessMessage(), "success");
       els.editButton.classList.remove("hidden");
       await pause(450);
@@ -2806,14 +2964,13 @@ fieldset {
         showStatus(started ? `Gemini backend failed: ${error.message}. I built an offline fallback quiz instead.` : `Gemini backend failed: ${error.message}.`, started ? "success" : undefined);
       } else {
         hideLoading();
-        showStatus(`Quiz generation failed: ${error.message}`);
+        showStatus(`QBL generation failed: ${error.message}`);
       }
     } finally {
       els.generateButton.disabled = false;
       els.generateButton.textContent = "Generate QBL";
     }
   }
-
   els.quizForm.addEventListener("change", (event) => {
     if (event.target.matches("input[type='radio']")) {
       const questionId = event.target.name;
@@ -2891,7 +3048,7 @@ fieldset {
   });
 
   els.restartButton.addEventListener("click", () => {
-    resetQuiz({ clearSource: true, clearStatusMessage: true });
+    resetQuiz({ clearStatusMessage: true });
     els.sourceText.focus();
   });
 
@@ -2901,6 +3058,9 @@ fieldset {
     setLoading(74, weakAreas.length ? "Targeting weak areas" : "Checking question quality");
     const mistakes = state.history.flatMap((result) => result.items.filter((item) => !item.isCorrect));
     const aiRound = await window.AiQuizService.generateQuiz({
+      courseDescription: state.courseDescription,
+      learningGoal: state.learningGoal,
+      selectedSkill: state.selectedSkill,
       text: state.sourceText,
       roundSize: state.roundSize,
       weakAreas,
@@ -2912,9 +3072,11 @@ fieldset {
     state.lockedAnswers = {};
     state.questions = aiRound.questions;
     state.knowledgeBank = aiRound.knowledgeBank || "";
-    state.course = aiRound.course || "";
-    state.learningGoals = aiRound.learningGoals || [];
-    state.skills = aiRound.skills || [];
+    state.course = aiRound.course || state.courseDescription || "";
+    state.learningGoal = aiRound.learningGoal || state.learningGoal || "";
+    state.selectedSkill = aiRound.skill || state.selectedSkill || "";
+    state.learningGoals = aiRound.learningGoals || (state.learningGoal ? [state.learningGoal] : []);
+    state.skills = aiRound.skills || (state.selectedSkill ? [state.selectedSkill] : []);
     state.currentQuestionIndex = 0;
     state.aiModelUsed = aiRound.modelUsed || "Gemini";
     syncAiAreas(aiRound.questions);
@@ -3344,6 +3506,9 @@ fieldset {
     state.previousQuestionIds = [];
     state.aiMode = false;
     state.aiModelUsed = "";
+    state.courseDescription = "";
+    state.learningGoal = "";
+    state.selectedSkill = "";
     state.sourceText = "";
     state.knowledgeBank = "";
     state.course = "";
@@ -3351,8 +3516,10 @@ fieldset {
     state.skills = [];
     state.roundSize = QBL_QUESTION_COUNT;
 
-    if (options.clearSource) {
-      els.sourceText.value = "";
+    if (options.fieldMode === "restore") {
+      setQblSetup(getDefaultQblSetup());
+    } else if (options.fieldMode === "clear" || options.clearSource) {
+      setQblSetup({ courseDescription: "", learningGoal: "", selectedSkill: "", sourceText: "" });
     }
 
     els.roundLabel.textContent = "Round 1";
@@ -3448,11 +3615,50 @@ fieldset {
     return QBL_QUESTION_COUNT;
   }
 
-  function loadDefaultSourceText() {
-    const defaultText = window.AiQuizService?.getDefaultQblSourceText?.() || "";
-    if (defaultText && !els.sourceText.value.trim()) {
-      els.sourceText.value = defaultText;
+  function loadDefaultQblSetup() {
+    const defaults = getDefaultQblSetup();
+    if (!els.courseDescription.value.trim() && !els.learningGoal.value.trim() && !els.selectedSkill.value.trim() && !els.sourceText.value.trim()) {
+      setQblSetup(defaults);
     }
+  }
+
+  function getDefaultQblSetup() {
+    const defaults = window.AiQuizService?.getDefaultQblSetup?.() || {};
+    return {
+      courseDescription: defaults.courseDescription || "",
+      learningGoal: defaults.learningGoal || "",
+      selectedSkill: defaults.selectedSkill || "",
+      sourceText: defaults.sourceText || window.AiQuizService?.getDefaultQblSourceText?.() || "",
+    };
+  }
+
+  function setQblSetup(setup) {
+    els.courseDescription.value = setup.courseDescription || "";
+    els.learningGoal.value = setup.learningGoal || "";
+    els.selectedSkill.value = setup.selectedSkill || "";
+    els.sourceText.value = setup.sourceText || "";
+  }
+
+  function readQblSetup() {
+    return {
+      courseDescription: cleanField(els.courseDescription.value),
+      learningGoal: cleanField(els.learningGoal.value),
+      selectedSkill: cleanField(els.selectedSkill.value),
+      sourceText: els.sourceText.value.trim(),
+    };
+  }
+
+  function buildGenerationContext(setup) {
+    return [
+      `Course description:\n${setup.courseDescription}`,
+      `Learning goal:\n${setup.learningGoal}`,
+      `Selected skill:\n${setup.selectedSkill}`,
+      `Source text:\n${setup.sourceText}`,
+    ].join("\n\n");
+  }
+
+  function cleanField(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
   }
 
   function countWords(text) {

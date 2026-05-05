@@ -9,16 +9,32 @@
 
   const ACCESS_CODE_KEY = "adaptiveQuizAccessCode";
   const QBL_QUESTION_COUNT = 3;
-  const QBL_COURSE_DESCRIPTION =
-    "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on \"Personalised Nutrition Care,\" updating clinical skills to integrate nutrigenomics, microbiome analysis, and individualized metabolic profiling alongside Nordic dietary guidelines (e.g., NNR 2023) to create highly tailored patient interventions.";
-  const QBL_SKILL =
-    "Analyzing patient continuous glucose monitor (CGM) data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with population-level carbohydrate guidelines, interpreted within the patient\u2019s broader metabolic health picture and used to inform, not override, tailored dietary prescriptions.";
-  const DEFAULT_QBL_SOURCE_TEXT = `${QBL_COURSE_DESCRIPTION}\n\nSelected skill:\n${QBL_SKILL}`;
+  const DEFAULT_QBL_COURSE_DESCRIPTION =
+    "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on Personalised Nutrition Care, integrating nutrigenomics, microbiome analysis, and individualized metabolic profiling with Swedish dietary guidelines such as NNR 2023.";
+  const DEFAULT_QBL_LEARNING_GOAL =
+    "Apply personalised nutrition principles to create individualized dietary interventions while still considering evidence-based Swedish dietary guidelines.";
+  const DEFAULT_QBL_SELECTED_SKILL =
+    "Analyzing patient continuous glucose monitor, CGM, data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with standard population-level carbohydrate guidelines.";
+  const DEFAULT_QBL_SOURCE_TEXT = [
+    "A short, specialized continuing education course for registered dietitians in Sweden. The course focuses on \"Personalised Nutrition Care,\" updating clinical skills to integrate nutrigenomics, microbiome analysis, and individualized metabolic profiling alongside Nordic dietary guidelines (e.g., NNR 2023) to create highly tailored patient interventions.",
+    "",
+    "Skill context:",
+    "Analyzing patient continuous glucose monitor (CGM) data alongside subjective lifestyle logs to identify highly individualized glycemic triggers that do not align with population-level carbohydrate guidelines, interpreted within the patient\u2019s broader metabolic health picture and used to inform, not override, tailored dietary prescriptions.",
+  ].join("\n");
+  const DEFAULT_QBL_SETUP = Object.freeze({
+    courseDescription: DEFAULT_QBL_COURSE_DESCRIPTION,
+    learningGoal: DEFAULT_QBL_LEARNING_GOAL,
+    selectedSkill: DEFAULT_QBL_SELECTED_SKILL,
+    sourceText: DEFAULT_QBL_SOURCE_TEXT,
+  });
 
   async function generateQuiz(options) {
     const settings = Object.assign(
       {
-        text: "",
+        courseDescription: DEFAULT_QBL_COURSE_DESCRIPTION,
+        learningGoal: DEFAULT_QBL_LEARNING_GOAL,
+        selectedSkill: DEFAULT_QBL_SELECTED_SKILL,
+        text: DEFAULT_QBL_SOURCE_TEXT,
         roundSize: QBL_QUESTION_COUNT,
         weakAreas: [],
         previousMistakes: [],
@@ -45,7 +61,7 @@
       throw requestError(message, response.status);
     }
 
-    return normalizeAiRound(payload, settings.roundIndex);
+    return normalizeAiRound(payload, settings.roundIndex, settings);
   }
 
   async function getConfig() {
@@ -107,12 +123,15 @@
   // QBL system prompt is defined here. It sets the learning philosophy, JSON contract, and validation rules Gemini should follow.
   function buildSystemPrompt() {
     return [
-      "You are an expert Question-Based Learning designer for continuing education in clinical dietetics.",
+      "You are an expert Question-Based Learning designer for professional and continuing education.",
       "Question-Based Learning is for learning through answering questions, not for evaluation. If the learner already knows all answers from the start, there is nothing to learn from the course.",
-      "Generate QBL-style learning content for one skill at a time.",
-      "Use the supplied course description, selected skill, and source text as the complete educational context.",
-      "Create a short knowledge bank first, then exactly three multiple-choice QBL questions of varying difficulty: easy, medium, and hard.",
-      "Questions must be appropriate for qualified practising dietitians and must encourage understanding, application, or analysis.",
+      "Generate QBL-style learning content for one selected skill at a time.",
+      "Use the supplied course description, learning goal, selected skill, and source text as the complete educational context.",
+      "Do not assume a dietetics, healthcare, CGM, or nutrition topic unless those details appear in the supplied fields.",
+      "Create a short but informative knowledge bank about the selected skill, based mainly on the source text.",
+      "Create exactly three multiple-choice QBL questions of varying difficulty: easy, medium, and hard.",
+      "Questions must fit the target group and subject area described in the course description.",
+      "Questions must encourage understanding, application, or analysis, not simple memorization.",
       "Do not create simple lookup, recall, or definition questions.",
       "Each question must be easy to understand, unambiguous, and focused on one common misconception.",
       "Each question must have exactly four answer options with ids A, B, C, and D.",
@@ -124,11 +143,21 @@
       "Incorrect feedback must be short, constructive, and guide the learner without revealing, naming, quoting, or describing the correct answer.",
       "Never write 'The correct answer is' or similar wording in incorrect feedback.",
       "Return only valid JSON. Do not wrap it in markdown.",
-      "Return this exact JSON shape: {\"course\":\"string\",\"learningGoals\":[\"string\"],\"skills\":[\"string\"],\"knowledgeBank\":\"string\",\"questionCount\":3,\"questions\":[{\"difficulty\":\"easy\",\"targetedMisconception\":\"string\",\"question\":\"string\",\"options\":[{\"id\":\"A\",\"text\":\"string\",\"isCorrect\":true,\"feedback\":\"Correct. string\"},{\"id\":\"B\",\"text\":\"string\",\"isCorrect\":false,\"feedback\":\"Incorrect. string\"}]}]}.",
+      "Return this exact JSON shape: {\"course\":\"string\",\"learningGoal\":\"string\",\"skill\":\"string\",\"knowledgeBank\":\"string\",\"questionCount\":3,\"questions\":[{\"difficulty\":\"easy\",\"targetedMisconception\":\"string\",\"question\":\"string\",\"options\":[{\"id\":\"A\",\"text\":\"string\",\"isCorrect\":true,\"feedback\":\"Correct. string\"},{\"id\":\"B\",\"text\":\"string\",\"isCorrect\":false,\"feedback\":\"Incorrect. string\"}]}]}.",
     ].join(" ");
   }
 
+  function getQblContext(settings) {
+    const source = settings || {};
+    return {
+      courseDescription: cleanText(source.courseDescription || source.course || DEFAULT_QBL_COURSE_DESCRIPTION),
+      learningGoal: cleanText(source.learningGoal || DEFAULT_QBL_LEARNING_GOAL),
+      selectedSkill: cleanText(source.selectedSkill || source.skill || DEFAULT_QBL_SELECTED_SKILL),
+      sourceText: cleanText(source.sourceText || source.text || DEFAULT_QBL_SOURCE_TEXT),
+    };
+  }
   function buildUserPrompt(settings) {
+    const qblContext = getQblContext(settings);
     const weakAreas = settings.weakAreas?.length ? settings.weakAreas.join(", ") : "None yet";
     const mistakes = settings.previousMistakes?.length
       ? settings.previousMistakes
@@ -138,29 +167,27 @@
       : "No previous mistakes.";
 
     return [
-      // Course and selected skill context are inserted into the user prompt here for the QBL generation call.
-      "Course:",
-      "Personalised Nutrition Care",
+      // Course description, learning goal, selected skill, and source text are inserted into the QBL prompt here.
       "Course description:",
-      QBL_COURSE_DESCRIPTION,
+      qblContext.courseDescription,
       "Learning goal:",
-      "Use patient-specific data to reason beyond population-level dietary assumptions and select more individualized nutrition interventions.",
+      qblContext.learningGoal,
       "Selected skill:",
-      QBL_SKILL,
+      qblContext.selectedSkill,
       `Round: ${settings.roundIndex || 1}`,
       `Number of QBL questions to generate: ${QBL_QUESTION_COUNT}`,
       `Weak areas from earlier answers: ${weakAreas}`,
       "Previous learner mistakes:",
       mistakes,
-      "Source text or instructor notes:",
-      cleanText(settings.text) || DEFAULT_QBL_SOURCE_TEXT,
-      "Output language: English unless the source text is clearly written in another language. Preserve Swedish guideline names and technical terms such as NNR 2023 and CGM.",
+      "Source text:",
+      qblContext.sourceText,
+      "Output language: English unless the course description, learning goal, selected skill, or source text is clearly written in another language. Preserve technical terms, guideline names, and proper nouns from the supplied context.",
       "Generate the QBL knowledge bank and three questions now.",
     ].join("\n\n");
   }
-
-  function normalizeAiRound(payload, roundIndex) {
+  function normalizeAiRound(payload, roundIndex, context) {
     // The parsed AI JSON response is normalized and validated here before the app renders it.
+    const qblContext = getQblContext(context);
     if (!payload || !Array.isArray(payload.questions)) {
       throw new Error("The AI response had the wrong QBL shape");
     }
@@ -169,12 +196,16 @@
       throw new Error(`The AI must return exactly ${QBL_QUESTION_COUNT} QBL questions`);
     }
 
-    const questions = payload.questions.map((question, index) => normalizeQblQuestion(question, index, roundIndex));
+    const learningGoal = cleanText(payload.learningGoal) || normalizeStringArray(payload.learningGoals, [qblContext.learningGoal])[0];
+    const skill = cleanText(payload.skill) || normalizeStringArray(payload.skills, [qblContext.selectedSkill])[0];
+    const questions = payload.questions.map((question, index) => normalizeQblQuestion(question, index, roundIndex, qblContext));
 
     return {
-      course: cleanCourse(payload.course),
-      learningGoals: normalizeStringArray(payload.learningGoals, ["Analyze individualized patient data to guide personalised nutrition care."]),
-      skills: normalizeStringArray(payload.skills, [QBL_SKILL]),
+      course: cleanCourse(payload.course, qblContext.courseDescription),
+      learningGoal,
+      skill,
+      learningGoals: normalizeStringArray(payload.learningGoals || [payload.learningGoal], [learningGoal]),
+      skills: normalizeStringArray(payload.skills || [payload.skill], [skill]),
       knowledgeBank: validateKnowledgeBank(payload.knowledgeBank),
       coverageSummary: cleanText(payload.coverageSummary || payload.knowledgeBank || ""),
       questionCount: QBL_QUESTION_COUNT,
@@ -182,8 +213,8 @@
       questions,
     };
   }
-
-  function normalizeQblQuestion(question, index, roundIndex) {
+  function normalizeQblQuestion(question, index, roundIndex, context) {
+    const qblContext = getQblContext(context);
     if (!question || typeof question !== "object") {
       throw new Error(`QBL question ${index + 1} is missing`);
     }
@@ -218,20 +249,19 @@
 
     return {
       id: cleanText(question.id) || `qbl-${roundIndex || 1}-${index}-${hashString(prompt)}`,
-      area: cleanText(question.area) || "Personalised Nutrition Care",
+      area: cleanText(question.area) || cleanMapTopic(qblContext.selectedSkill || qblContext.courseDescription),
       type: "qbl",
       prompt,
       options: normalizedOptions,
       answerId: correctOption.id,
       explanation: correctOption.feedback,
       source: "QBL knowledge bank",
-      skillTag: cleanText(question.skillTag) || QBL_SKILL,
+      skillTag: cleanText(question.skillTag) || qblContext.selectedSkill,
       mapTopic: cleanMapTopic(question.mapTopic || targetedMisconception || difficulty),
       difficulty,
       targetedMisconception,
     };
   }
-
   function normalizeQblOption(option, optionIndex, answerId) {
     if (!option || typeof option !== "object") {
       throw new Error("Each QBL answer option must be an object with id, text, isCorrect, and feedback");
@@ -291,10 +321,11 @@
     return knowledgeBank;
   }
 
-  function cleanCourse(value) {
-    if (typeof value === "string") return cleanText(value) || "Personalised Nutrition Care";
-    if (value && typeof value === "object") return cleanText(value.title || value.name || value.description) || "Personalised Nutrition Care";
-    return "Personalised Nutrition Care";
+  function cleanCourse(value, fallback) {
+    const fallbackCourse = cleanText(fallback) || "QBL activity";
+    if (typeof value === "string") return cleanText(value) || fallbackCourse;
+    if (value && typeof value === "object") return cleanText(value.title || value.name || value.description) || fallbackCourse;
+    return fallbackCourse;
   }
 
   function normalizeStringArray(value, fallback) {
@@ -320,6 +351,10 @@
 
   function getDefaultQblSourceText() {
     return DEFAULT_QBL_SOURCE_TEXT;
+  }
+
+  function getDefaultQblSetup() {
+    return Object.assign({}, DEFAULT_QBL_SETUP);
   }
   function extractGeminiText(payload) {
     const parts = payload?.candidates?.[0]?.content?.parts || [];
@@ -433,6 +468,7 @@
     verifyAccessCode,
     getAccessCode,
     getDefaultQblSourceText,
+    getDefaultQblSetup,
     _private: {
       buildSystemPrompt,
       buildUserPrompt,

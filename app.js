@@ -11,6 +11,9 @@
     accessSubmitButton: document.getElementById("accessSubmitButton"),
     themeToggle: document.getElementById("themeToggle"),
     themeToggleText: document.getElementById("themeToggleText"),
+    courseDescription: document.getElementById("courseDescription"),
+    learningGoal: document.getElementById("learningGoal"),
+    selectedSkill: document.getElementById("selectedSkill"),
     sourceText: document.getElementById("sourceText"),
     generateButton: document.getElementById("generateButton"),
     clearButton: document.getElementById("clearButton"),
@@ -57,6 +60,9 @@
     previousQuestionIds: [],
     aiMode: false,
     aiModelUsed: "",
+    courseDescription: "",
+    learningGoal: "",
+    selectedSkill: "",
     sourceText: "",
     knowledgeBank: "",
     course: "",
@@ -67,7 +73,7 @@
   };
 
   initTheme();
-  loadDefaultSourceText();
+  loadDefaultQblSetup();
 
   els.accessForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -75,7 +81,8 @@
   });
 
   els.clearButton.addEventListener("click", () => {
-    resetQuiz({ clearSource: true, clearStatusMessage: true });
+    const restoreExamples = window.confirm("Restore the example QBL setup? Choose Cancel to clear all fields.");
+    resetQuiz({ fieldMode: restoreExamples ? "restore" : "clear", clearStatusMessage: true });
   });
 
   els.editButton.addEventListener("click", () => {
@@ -124,14 +131,22 @@
   }
 
   async function generateQuiz() {
-    const text = els.sourceText.value.trim();
+    // The four editable QBL setup fields are read here before the app asks Gemini to generate the activity.
+    const setup = readQblSetup();
+    const generationText = buildGenerationContext(setup);
     const roundSize = QBL_QUESTION_COUNT;
 
     clearStatus();
-    setLoading(8, "Reading your context");
+    setLoading(8, "Reading your QBL setup");
 
-    if (text.length < 40) {
-      showStatus("Paste a little more educational text first. Two or three clear facts is enough.");
+    if (!setup.courseDescription || !setup.learningGoal || !setup.selectedSkill || !setup.sourceText) {
+      showStatus("Complete the course description, learning goal, selected skill, and source text first.");
+      hideLoading();
+      return;
+    }
+
+    if (setup.sourceText.length < 40) {
+      showStatus("Add a little more source text first. A short paragraph of notes is enough.");
       hideLoading();
       return;
     }
@@ -144,16 +159,19 @@
       setLoading(34, "Building the QBL knowledge bank");
       await pause(120);
 
-      const session = window.QuizEngine.createSession(text, { roundSize });
+      const session = window.QuizEngine.createSession(generationText, { roundSize });
 
       if (!session.facts.length) {
-        showStatus("I could not find enough clear study points. Try pasting notes with a few definitions, causes, steps, or examples.");
+        showStatus("I could not find enough clear study points. Try adding a few concrete notes, examples, steps, or decision points.");
         hideLoading();
         return;
       }
 
       state.session = session;
-      state.sourceText = text;
+      state.courseDescription = setup.courseDescription;
+      state.learningGoal = setup.learningGoal;
+      state.selectedSkill = setup.selectedSkill;
+      state.sourceText = setup.sourceText;
       state.aiMode = true;
       state.roundIndex = 1;
       state.history = [];
@@ -169,12 +187,12 @@
 
       const started = state.questions.length > 0;
       if (!started) {
-        showStatus("The text was readable, but I could not form quiz questions from it. Add one or two more factual sentences and try again.");
+        showStatus("The setup was readable, but I could not form QBL questions from it. Add one or two more source details and try again.");
         hideLoading();
         return;
       }
 
-      setLoading(100, "Quiz ready");
+      setLoading(100, "QBL activity ready");
       showStatus(getSuccessMessage(), "success");
       els.editButton.classList.remove("hidden");
       await pause(450);
@@ -195,14 +213,13 @@
         showStatus(started ? `Gemini backend failed: ${error.message}. I built an offline fallback quiz instead.` : `Gemini backend failed: ${error.message}.`, started ? "success" : undefined);
       } else {
         hideLoading();
-        showStatus(`Quiz generation failed: ${error.message}`);
+        showStatus(`QBL generation failed: ${error.message}`);
       }
     } finally {
       els.generateButton.disabled = false;
       els.generateButton.textContent = "Generate QBL";
     }
   }
-
   els.quizForm.addEventListener("change", (event) => {
     if (event.target.matches("input[type='radio']")) {
       const questionId = event.target.name;
@@ -280,7 +297,7 @@
   });
 
   els.restartButton.addEventListener("click", () => {
-    resetQuiz({ clearSource: true, clearStatusMessage: true });
+    resetQuiz({ clearStatusMessage: true });
     els.sourceText.focus();
   });
 
@@ -290,6 +307,9 @@
     setLoading(74, weakAreas.length ? "Targeting weak areas" : "Checking question quality");
     const mistakes = state.history.flatMap((result) => result.items.filter((item) => !item.isCorrect));
     const aiRound = await window.AiQuizService.generateQuiz({
+      courseDescription: state.courseDescription,
+      learningGoal: state.learningGoal,
+      selectedSkill: state.selectedSkill,
       text: state.sourceText,
       roundSize: state.roundSize,
       weakAreas,
@@ -301,9 +321,11 @@
     state.lockedAnswers = {};
     state.questions = aiRound.questions;
     state.knowledgeBank = aiRound.knowledgeBank || "";
-    state.course = aiRound.course || "";
-    state.learningGoals = aiRound.learningGoals || [];
-    state.skills = aiRound.skills || [];
+    state.course = aiRound.course || state.courseDescription || "";
+    state.learningGoal = aiRound.learningGoal || state.learningGoal || "";
+    state.selectedSkill = aiRound.skill || state.selectedSkill || "";
+    state.learningGoals = aiRound.learningGoals || (state.learningGoal ? [state.learningGoal] : []);
+    state.skills = aiRound.skills || (state.selectedSkill ? [state.selectedSkill] : []);
     state.currentQuestionIndex = 0;
     state.aiModelUsed = aiRound.modelUsed || "Gemini";
     syncAiAreas(aiRound.questions);
@@ -733,6 +755,9 @@
     state.previousQuestionIds = [];
     state.aiMode = false;
     state.aiModelUsed = "";
+    state.courseDescription = "";
+    state.learningGoal = "";
+    state.selectedSkill = "";
     state.sourceText = "";
     state.knowledgeBank = "";
     state.course = "";
@@ -740,8 +765,10 @@
     state.skills = [];
     state.roundSize = QBL_QUESTION_COUNT;
 
-    if (options.clearSource) {
-      els.sourceText.value = "";
+    if (options.fieldMode === "restore") {
+      setQblSetup(getDefaultQblSetup());
+    } else if (options.fieldMode === "clear" || options.clearSource) {
+      setQblSetup({ courseDescription: "", learningGoal: "", selectedSkill: "", sourceText: "" });
     }
 
     els.roundLabel.textContent = "Round 1";
@@ -837,11 +864,50 @@
     return QBL_QUESTION_COUNT;
   }
 
-  function loadDefaultSourceText() {
-    const defaultText = window.AiQuizService?.getDefaultQblSourceText?.() || "";
-    if (defaultText && !els.sourceText.value.trim()) {
-      els.sourceText.value = defaultText;
+  function loadDefaultQblSetup() {
+    const defaults = getDefaultQblSetup();
+    if (!els.courseDescription.value.trim() && !els.learningGoal.value.trim() && !els.selectedSkill.value.trim() && !els.sourceText.value.trim()) {
+      setQblSetup(defaults);
     }
+  }
+
+  function getDefaultQblSetup() {
+    const defaults = window.AiQuizService?.getDefaultQblSetup?.() || {};
+    return {
+      courseDescription: defaults.courseDescription || "",
+      learningGoal: defaults.learningGoal || "",
+      selectedSkill: defaults.selectedSkill || "",
+      sourceText: defaults.sourceText || window.AiQuizService?.getDefaultQblSourceText?.() || "",
+    };
+  }
+
+  function setQblSetup(setup) {
+    els.courseDescription.value = setup.courseDescription || "";
+    els.learningGoal.value = setup.learningGoal || "";
+    els.selectedSkill.value = setup.selectedSkill || "";
+    els.sourceText.value = setup.sourceText || "";
+  }
+
+  function readQblSetup() {
+    return {
+      courseDescription: cleanField(els.courseDescription.value),
+      learningGoal: cleanField(els.learningGoal.value),
+      selectedSkill: cleanField(els.selectedSkill.value),
+      sourceText: els.sourceText.value.trim(),
+    };
+  }
+
+  function buildGenerationContext(setup) {
+    return [
+      `Course description:\n${setup.courseDescription}`,
+      `Learning goal:\n${setup.learningGoal}`,
+      `Selected skill:\n${setup.selectedSkill}`,
+      `Source text:\n${setup.sourceText}`,
+    ].join("\n\n");
+  }
+
+  function cleanField(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
   }
 
   function countWords(text) {

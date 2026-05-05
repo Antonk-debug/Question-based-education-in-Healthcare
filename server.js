@@ -82,22 +82,35 @@ async function handleGenerateQuiz(req, res) {
     return;
   }
 
-  const text = String(body.text || "").trim();
-  if (text.length < 40) {
-    sendJson(res, 400, { error: "Paste a little more educational text first" });
+  // The four QBL setup fields arrive here from the browser before they are inserted into the AI prompt.
+  const courseDescription = String(body.courseDescription || "").trim();
+  const learningGoal = String(body.learningGoal || "").trim();
+  const selectedSkill = String(body.selectedSkill || body.skill || "").trim();
+  const text = String(body.text || body.sourceText || "").trim();
+  if (!courseDescription || !learningGoal || !selectedSkill || !text) {
+    sendJson(res, 400, { error: "Complete the course description, learning goal, selected skill, and source text first" });
     return;
   }
+  if (text.length < 40) {
+    sendJson(res, 400, { error: "Add a little more source text first" });
+    return;
+  }
+
+  const generationSettings = {
+    courseDescription,
+    learningGoal,
+    selectedSkill,
+    text,
+    roundSize: Number(body.roundSize || 3),
+    weakAreas: Array.isArray(body.weakAreas) ? body.weakAreas : [],
+    previousMistakes: Array.isArray(body.previousMistakes) ? body.previousMistakes : [],
+    roundIndex: Number(body.roundIndex || 1),
+  };
 
   const prompt = [
     AiQuizService._private.buildSystemPrompt(),
     "",
-    AiQuizService._private.buildUserPrompt({
-      text,
-      roundSize: Number(body.roundSize || 3),
-      weakAreas: Array.isArray(body.weakAreas) ? body.weakAreas : [],
-      previousMistakes: Array.isArray(body.previousMistakes) ? body.previousMistakes : [],
-      roundIndex: Number(body.roundIndex || 1),
-    }),
+    AiQuizService._private.buildUserPrompt(generationSettings),
   ].join("\n");
 
   const requestBody = {
@@ -129,7 +142,7 @@ async function handleGenerateQuiz(req, res) {
   try {
     // The AI JSON response is parsed here, then ai.js validates the QBL shape before the response reaches the browser.
     const parsed = AiQuizService._private.parseJsonFromText(outputText);
-    const normalized = AiQuizService._private.normalizeAiRound(parsed, Number(body.roundIndex || 1));
+    const normalized = AiQuizService._private.normalizeAiRound(parsed, Number(body.roundIndex || 1), generationSettings);
     normalized.questionCount = normalized.questions.length;
     normalized.modelUsed = geminiResult.modelUsed;
     sendJson(res, 200, normalized);

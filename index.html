@@ -39,13 +39,55 @@
       </header>
 
       <main class="workspace">
-        <section class="source-panel" aria-label="Source text">
-          <textarea
-            id="sourceText"
-            spellcheck="true"
-            aria-label="Source text"
-            placeholder="Paste course notes, patient-data context, or instructor guidance for this QBL skill."
-          ></textarea>
+        <section class="source-panel" aria-label="QBL setup">
+          <p class="setup-note">The default content below can be replaced or edited</p>
+
+          <div class="setup-fields">
+            <label class="setup-field" for="courseDescription">
+              <span class="field-label">Course description</span>
+              <span class="field-helper" id="courseDescriptionHelp">Briefly describe the course, target group, and subject area.</span>
+              <textarea
+                class="setup-textarea setup-textarea-small"
+                id="courseDescription"
+                spellcheck="true"
+                aria-describedby="courseDescriptionHelp"
+              ></textarea>
+            </label>
+
+            <label class="setup-field" for="learningGoal">
+              <span class="field-label">Learning goal</span>
+              <span class="field-helper" id="learningGoalHelp">Describe what the learner should be able to do after the activity.</span>
+              <textarea
+                class="setup-textarea setup-textarea-small"
+                id="learningGoal"
+                spellcheck="true"
+                aria-describedby="learningGoalHelp"
+              ></textarea>
+            </label>
+
+            <label class="setup-field" for="selectedSkill">
+              <span class="field-label">Selected skill</span>
+              <span class="field-helper" id="selectedSkillHelp">Describe the specific skill that the questions should train.</span>
+              <textarea
+                class="setup-textarea setup-textarea-medium"
+                id="selectedSkill"
+                spellcheck="true"
+                aria-describedby="selectedSkillHelp"
+              ></textarea>
+            </label>
+
+            <label class="setup-field" for="sourceText">
+              <span class="field-label">Source text</span>
+              <span class="field-helper" id="sourceTextHelp">Paste the material that the knowledge bank and questions should be based on.</span>
+              <textarea
+                class="setup-textarea setup-textarea-large"
+                id="sourceText"
+                spellcheck="true"
+                aria-describedby="sourceTextHelp"
+                placeholder="Replace the example text with course notes, patient-data context, or instructor guidance."
+              ></textarea>
+            </label>
+          </div>
 
           <div class="source-actions">
             <button class="primary-button" id="generateButton" type="button">Generate QBL</button>
@@ -84,7 +126,7 @@
               <span></span>
               <span></span>
             </div>
-            <p>Questions appear here after the source text is analyzed.</p>
+            <p>Questions appear here after the QBL setup is analyzed.</p>
           </div>
 
           <form id="quizForm" class="question-stack hidden"></form>
