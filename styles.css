@@ -748,6 +748,21 @@ fieldset {
   transform: translateY(-1px);
 }
 
+.option-row.locked {
+  cursor: default;
+}
+
+.option-row.locked:hover {
+  border-color: var(--line);
+  transform: none;
+}
+
+.option-row.locked:has(input:checked),
+.option-row.locked:has(input:checked):hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
 .option-row input {
   position: absolute;
   opacity: 0;
@@ -791,6 +806,13 @@ fieldset {
   padding: 12px;
   color: var(--ink);
   line-height: 1.45;
+}
+
+.answer-lock-note {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
 }
 
 .option-feedback.correct {

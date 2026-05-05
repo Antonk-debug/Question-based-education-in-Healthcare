@@ -45,6 +45,7 @@
     session: null,
     questions: [],
     answers: {},
+    lockedAnswers: {},
     currentQuestionIndex: 0,
     advanceTimer: null,
     transitionTimer: null,
@@ -204,9 +205,16 @@
 
   els.quizForm.addEventListener("change", (event) => {
     if (event.target.matches("input[type='radio']")) {
-      state.answers[event.target.name] = event.target.value;
-      // Answer-specific QBL feedback is displayed by re-rendering the current question after the learner chooses an option.
-      if (event.target.name === state.questions[state.currentQuestionIndex]?.id) renderQuestions();
+      const questionId = event.target.name;
+      if (state.lockedAnswers[questionId]) {
+        renderQuestions();
+        return;
+      }
+
+      state.answers[questionId] = event.target.value;
+      state.lockedAnswers[questionId] = true;
+      // Answer-specific QBL feedback is displayed by re-rendering the current question after the learner submits an option.
+      if (questionId === state.questions[state.currentQuestionIndex]?.id) renderQuestions();
       updateProgress();
       renderInsights();
     }
@@ -290,6 +298,7 @@
     });
 
     state.answers = {};
+    state.lockedAnswers = {};
     state.questions = aiRound.questions;
     state.knowledgeBank = aiRound.knowledgeBank || "";
     state.course = aiRound.course || "";
@@ -304,6 +313,7 @@
 
   function startRound(weakAreas) {
     state.answers = {};
+    state.lockedAnswers = {};
     state.currentQuestionIndex = 0;
     state.questions = window.QuizEngine.generateRound(state.session, {
       weakAreas,
@@ -358,23 +368,26 @@
     state.currentQuestionIndex = clamp(state.currentQuestionIndex, 0, state.questions.length - 1);
     const question = state.questions[state.currentQuestionIndex];
     const selectedAnswer = state.answers[question.id];
+    const isLocked = Boolean(state.lockedAnswers[question.id]);
     const selectedOption = question.options.find((option) => option.id === selectedAnswer);
     const options = question.options
       .map((option, optionIndex) => {
         const letter = option.id || String.fromCharCode(65 + optionIndex);
         const checked = selectedAnswer === option.id ? "checked" : "";
+        const disabled = isLocked ? "disabled" : "";
+        const rowState = isLocked ? " locked" : "";
         return `
-          <label class="option-row">
-            <input type="radio" name="${escapeHtml(question.id)}" value="${escapeHtml(option.id)}" ${checked} />
+          <label class="option-row${rowState}">
+            <input type="radio" name="${escapeHtml(question.id)}" value="${escapeHtml(option.id)}" ${checked} ${disabled} />
             <span class="option-letter">${escapeHtml(letter)}</span>
             <span>${escapeHtml(option.text)}</span>
           </label>
         `;
       })
       .join("");
-    // Answer-specific feedback is displayed here directly under the selected option set.
-    const feedback = selectedOption?.feedback
-      ? `<div class="option-feedback ${selectedOption.id === question.answerId ? "correct" : "wrong"}" role="status">${escapeHtml(selectedOption.feedback)}</div>`
+    // Answer-specific feedback is displayed here directly under the selected option set after the answer is locked.
+    const feedback = selectedOption?.feedback && isLocked
+      ? `<div class="option-feedback ${selectedOption.id === question.answerId ? "correct" : "wrong"}" role="status"><p class="answer-lock-note">Answer submitted. Review the feedback, then continue.</p><p>${escapeHtml(selectedOption.feedback)}</p></div>`
       : "";
 
     els.quizForm.innerHTML = `
@@ -403,17 +416,15 @@
   }
 
   function updateProgress() {
-    const answered = Object.keys(state.answers).length;
+    const answered = Object.keys(state.lockedAnswers).length;
     const total = state.questions.length;
+    const currentQuestionId = state.questions[state.currentQuestionIndex]?.id;
     const pct = total ? Math.round((answered / total) * 100) : 0;
-    els.progressText.textContent = `${answered} of ${total} answered`;
+    els.progressText.textContent = `${answered} of ${total} submitted`;
     els.progressBar.style.width = `${pct}%`;
     els.submitButton.disabled = answered !== total;
     els.prevQuestionButton.disabled = !total || state.currentQuestionIndex === 0;
-    els.nextQuestionButton.disabled =
-      !total ||
-      state.currentQuestionIndex >= total - 1 ||
-      !state.answers[state.questions[state.currentQuestionIndex]?.id];
+    els.nextQuestionButton.disabled = !total || state.currentQuestionIndex >= total - 1 || !state.lockedAnswers[currentQuestionId];
     els.submitButton.classList.toggle("hidden", state.currentQuestionIndex < total - 1);
     els.nextQuestionButton.classList.toggle("hidden", state.currentQuestionIndex >= total - 1);
   }
@@ -710,6 +721,7 @@
     state.session = null;
     state.questions = [];
     state.answers = {};
+    state.lockedAnswers = {};
     state.currentQuestionIndex = 0;
     clearTimeout(state.advanceTimer);
     clearTimeout(state.transitionTimer);
