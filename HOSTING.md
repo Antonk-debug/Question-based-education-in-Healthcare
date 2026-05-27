@@ -9,8 +9,8 @@ Set these in your hosting provider's dashboard:
 ```text
 GEMINI_API_KEY=your-gemini-api-key
 ACCESS_CODE=optional-code-users-enter
-GEMINI_MODEL=gemini-3.1-flash-lite-preview
-GEMINI_MODELS=gemini-3.1-flash-lite-preview,gemini-2.5-flash,gemini-2.5-flash-lite
+GEMINI_MODEL=gemini-3.1-flash-lite
+GEMINI_MODELS=gemini-3.1-flash-lite,gemini-3.5-flash,gemini-2.5-flash,gemini-2.5-flash-lite
 ```
 
 If `ACCESS_CODE` is empty, the app opens without a code. If it has a value, users see a simple access-code screen.

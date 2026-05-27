@@ -12,8 +12,9 @@ loadEnvFile(path.join(root, ".env"));
 
 const host = process.env.HOST || (isHostedRuntime ? "0.0.0.0" : "127.0.0.1");
 const accessCode = String(process.env.ACCESS_CODE || "").trim();
-const defaultModel = "gemini-3.1-flash-lite-preview";
-const defaultModels = `${defaultModel},gemini-2.5-flash,gemini-2.5-flash-lite`;
+const retiredDefaultModel = "gemini-3.1-flash-lite-preview";
+const defaultModel = "gemini-3.1-flash-lite";
+const defaultModels = `${defaultModel},gemini-3.5-flash,gemini-2.5-flash,gemini-2.5-flash-lite`;
 const model = getConfiguredModel();
 const models = uniqueModelList(getConfiguredModels(model).split(",").map((item) => item.trim()).filter(Boolean));
 
@@ -231,13 +232,13 @@ function uniqueModelList(modelList) {
 
 function getConfiguredModel() {
   const configuredModel = String(process.env.GEMINI_MODEL || "").trim();
-  return !configuredModel || configuredModel === "gemini-2.5-flash" ? defaultModel : configuredModel;
+  return !configuredModel || configuredModel === "gemini-2.5-flash" || configuredModel.includes(retiredDefaultModel) ? defaultModel : configuredModel;
 }
 
 function getConfiguredModels(primaryModel) {
   const configuredModels = String(process.env.GEMINI_MODELS || "").trim();
-  if (!configuredModels || configuredModels === "gemini-2.5-flash,gemini-2.5-flash-lite") {
-    return primaryModel === defaultModel ? defaultModels : `${primaryModel},gemini-2.5-flash,gemini-2.5-flash-lite`;
+  if (!configuredModels || configuredModels === "gemini-2.5-flash,gemini-2.5-flash-lite" || configuredModels.includes(retiredDefaultModel)) {
+    return primaryModel === defaultModel ? defaultModels : `${primaryModel},gemini-3.5-flash,gemini-2.5-flash,gemini-2.5-flash-lite`;
   }
   return configuredModels;
 }

@@ -54,13 +54,14 @@ def load_env_file():
 load_env_file()
 HOST = os.environ.get("HOST") or ("0.0.0.0" if IS_HOSTED_RUNTIME else "127.0.0.1")
 ACCESS_CODE = os.environ.get("ACCESS_CODE", "").strip()
-DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
-DEFAULT_GEMINI_MODELS = f"{DEFAULT_GEMINI_MODEL},gemini-2.5-flash,gemini-2.5-flash-lite"
+RETIRED_DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
+DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
+DEFAULT_GEMINI_MODELS = f"{DEFAULT_GEMINI_MODEL},gemini-3.5-flash,gemini-2.5-flash,gemini-2.5-flash-lite"
 CONFIGURED_GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip()
-GEMINI_MODEL = DEFAULT_GEMINI_MODEL if CONFIGURED_GEMINI_MODEL in {"", "gemini-2.5-flash"} else CONFIGURED_GEMINI_MODEL
+GEMINI_MODEL = DEFAULT_GEMINI_MODEL if CONFIGURED_GEMINI_MODEL in {"", "gemini-2.5-flash"} or RETIRED_DEFAULT_GEMINI_MODEL in CONFIGURED_GEMINI_MODEL else CONFIGURED_GEMINI_MODEL
 CONFIGURED_GEMINI_MODELS = os.environ.get("GEMINI_MODELS", "").strip()
-if CONFIGURED_GEMINI_MODELS in {"", "gemini-2.5-flash,gemini-2.5-flash-lite"}:
-    CONFIGURED_GEMINI_MODELS = DEFAULT_GEMINI_MODELS if GEMINI_MODEL == DEFAULT_GEMINI_MODEL else f"{GEMINI_MODEL},gemini-2.5-flash,gemini-2.5-flash-lite"
+if CONFIGURED_GEMINI_MODELS in {"", "gemini-2.5-flash,gemini-2.5-flash-lite"} or RETIRED_DEFAULT_GEMINI_MODEL in CONFIGURED_GEMINI_MODELS:
+    CONFIGURED_GEMINI_MODELS = DEFAULT_GEMINI_MODELS if GEMINI_MODEL == DEFAULT_GEMINI_MODEL else f"{GEMINI_MODEL},gemini-3.5-flash,gemini-2.5-flash,gemini-2.5-flash-lite"
 GEMINI_MODELS = [model.strip() for model in CONFIGURED_GEMINI_MODELS.split(",") if model.strip()]
 
 
